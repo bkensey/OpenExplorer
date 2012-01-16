@@ -3,7 +3,6 @@
 	<group android:checkableBehavior="single">
 		<item
 			android:id="@+id/menu_sort_name_asc"
-			android:checked="true"
 			android:title="@string/s_menu_sort_name_asc"
 			android:showAsAction="withText" />
 		<item
@@ -16,6 +15,7 @@
 			android:showAsAction="withText" />
 		<item
 			android:id="@+id/menu_sort_date_desc"
+			android:checked="true"
 			android:title="@string/s_menu_sort_date_desc"
 			android:showAsAction="withText" />
 		<item

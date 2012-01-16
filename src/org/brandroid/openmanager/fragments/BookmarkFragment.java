@@ -125,4 +125,12 @@ public class BookmarkFragment extends OpenFragment implements OnBookMarkChangeLi
 			mBookmarks.scanBookmarks();
 	}
 
+
+
+	public void expandAll() {
+		ExpandableListView list = getListView();
+		for(int i = 0; i < list.getCount(); i++)
+			list.expandGroup(i);
+	}
+
 }

@@ -118,34 +118,41 @@ public class OpenBookmarks implements OnBookMarkChangeListener,
 		//mBookmarksArray.clear();
 		clearBookmarks();
 		
-		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, getExplorer().getVideoParent());
-		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, getExplorer().getPhotoParent());
-		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, getExplorer().getMusicParent());
+		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, OpenCursor.getVideoParent());
+		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, OpenCursor.getPhotoParent());
+		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, OpenCursor.getMusicParent());
+		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, OpenCursor.getDownloadParent());
 		
 		checkAndAdd(BookmarkType.BOOKMARK_DRIVE, new OpenFile("/"));
 		
 		checkAndAdd(BookmarkType.BOOKMARK_DRIVE, storage);
 		
-		checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, storage.getChild("Download"));
 		if(checkAndAdd(BookmarkType.BOOKMARK_DRIVE, new OpenFile("/mnt/external_sd")))
 			mHasExternal = true;
 		if(checkAndAdd(BookmarkType.BOOKMARK_DRIVE, new OpenFile("/mnt/sdcard-ext")))
 			mHasExternal = true;
 		if(checkAndAdd(BookmarkType.BOOKMARK_DRIVE, new OpenFile("/Removable/MicroSD")))
 			mHasExternal = true;
-		Hashtable<String, DFInfo> df = DFInfo.LoadDF();
-		for(String sItem : df.keySet())
+		
+		//if(!checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, storage.getChild("Download")))
+		//	checkAndAdd(BookmarkType.BOOKMARK_SMART_FOLDER, storage.getChild("download"));
+		
+		if(!OpenExplorer.BEFORE_HONEYCOMB)
 		{
-			if(sItem.toLowerCase().startsWith("/dev")) continue;
-			if(sItem.toLowerCase().indexOf("/system") > -1) continue;
-			if(sItem.toLowerCase().indexOf("vendor") > -1) continue;
-			OpenFile file = new OpenFile(sItem);
-			if(file.isHidden()) continue;
-			if(file.getTotalSpace() > 0)
-				mAllDataSize += file.getTotalSpace();
-			//if(!file.getFile().canWrite()) continue;
-			//if(sItem.toLowerCase().indexOf("asec") > -1) continue;
-			checkAndAdd(BookmarkType.BOOKMARK_DRIVE, file);
+			Hashtable<String, DFInfo> df = DFInfo.LoadDF();
+			for(String sItem : df.keySet())
+			{
+				if(sItem.toLowerCase().startsWith("/dev")) continue;
+				if(sItem.toLowerCase().indexOf("/system") > -1) continue;
+				if(sItem.toLowerCase().indexOf("vendor") > -1) continue;
+				OpenFile file = new OpenFile(sItem);
+				if(file.isHidden()) continue;
+				if(file.getTotalSpace() > 0)
+					mAllDataSize += file.getTotalSpace();
+				//if(!file.getFile().canWrite()) continue;
+				//if(sItem.toLowerCase().indexOf("asec") > -1) continue;
+				checkAndAdd(BookmarkType.BOOKMARK_DRIVE, file);
+			}
 		}
 		if (mBookmarkString.length() > 0) {
 			String[] l = mBookmarkString.split(";");
@@ -165,8 +172,12 @@ public class OpenBookmarks implements OnBookMarkChangeListener,
 			ftp.setServersIndex(i);
 			checkAndAdd(BookmarkType.BOOKMARK_SERVER, ftp);
 		}
+		
+		Logger.LogDebug("Done scanning!");
+		
 		if(mBookmarkAdapter != null)
 			mBookmarkAdapter.notifyDataSetChanged();
+		
 	}
 	
 	public void saveBookmarks()
@@ -261,7 +272,7 @@ public class OpenBookmarks implements OnBookMarkChangeListener,
 			if(((OpenCursor)path).length() == 0)
 				return false;
 		try {
-			if(getSetting("hide_" + path.getAbsolutePath(), false))
+			if(getSetting("hide_" + path.getPath(), false))
 				return false;
 		} catch(NullPointerException e) { }
 		if(hasBookmark(path)) return false;

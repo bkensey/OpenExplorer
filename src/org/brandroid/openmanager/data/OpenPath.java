@@ -21,15 +21,17 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.provider.SyncStateContract.Columns;
 import android.view.View;
 
 public abstract class OpenPath implements Serializable, Parcelable, Comparable<OpenPath>
 {
-	public static SortType Sorting = SortType.ALPHA;
+	public static SortType Sorting = SortType.DATE_DESC;
 	
 	private static final long serialVersionUID = 332701810738149106L;
 	private Object mTag = null;
 	private OpenPathThreadUpdater mUpdater;
+	public String[] CursorColumns = new String[]{"_data","_display_name","_size","date_modified","date_added","mime_type","parent"}; 
 	public abstract String getName();
 	public abstract String getPath();
 	public abstract String getAbsolutePath();
@@ -207,5 +209,10 @@ public abstract class OpenPath implements Serializable, Parcelable, Comparable<O
 	{
 		public void update(int progress, int total);
 		public void update(String status);
+	}
+
+	public String[] getColumns() { return CursorColumns; }
+	public int getColumnCount() {
+		return CursorColumns.length;
 	}
 }

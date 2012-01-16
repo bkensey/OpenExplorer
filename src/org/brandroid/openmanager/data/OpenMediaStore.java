@@ -27,9 +27,10 @@ public class OpenMediaStore extends OpenPath
 	
 	public OpenMediaStore(OpenCursor parent, Cursor cursor)
 	{
+		if(cursor.isAfterLast() || cursor.isBeforeFirst()) return;
 		curs = parent;
 		//Cursor cursor = parent.getCursor();
-		id = cursor.getString(0);
+		id = cursor.getString(cursor.getColumnIndex("_id"));
 		if(cursor.getColumnCount() > 1)
 			name = cursor.getString(1);
 		if(cursor.getColumnCount() > 2)

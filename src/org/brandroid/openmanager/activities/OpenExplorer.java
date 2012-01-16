@@ -44,7 +44,10 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentManager.BackStackEntry;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.app.FragmentManager.OnBackStackChangedListener;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.CursorLoader;
+import android.support.v4.content.Loader;
 import android.text.format.DateUtils;
 import android.view.ActionMode;
 import android.view.InflateException;
@@ -115,7 +118,7 @@ import org.json.JSONObject;
 
 public class OpenExplorer
 		extends OpenFragmentActivity
-		implements OnBackStackChangedListener
+		implements OnBackStackChangedListener, LoaderCallbacks<Cursor>
 	{	
 
 	private static final int PREF_CODE =		0x6;
@@ -125,7 +128,8 @@ public class OpenExplorer
 	public static final int VIEW_CAROUSEL = Build.VERSION.SDK_INT > 11 ? 2 : 1;
 	
 	public static final boolean BEFORE_HONEYCOMB = Build.VERSION.SDK_INT < 11;
-	public static final boolean USE_ACTION_BAR = false;
+	public static boolean USE_ACTION_BAR = false;
+	private static boolean USE_PRETTY_MENUS = false;
 	public static boolean IS_DEBUG_BUILD = false;
 	public static final int REQUEST_CANCEL = 101;
 	
@@ -137,8 +141,7 @@ public class OpenExplorer
 	private OpenPath mLastPath = null;
 	private BroadcastReceiver storageReceiver = null;
 	private Handler mHandler = new Handler();  // handler for the main thread
-	private int mViewMode = VIEW_LIST;
-	private long mLastCursorEnsure = 0;
+	private static int mViewMode = VIEW_LIST;
 	
 	private Fragment mFavoritesFragment;
 	private ExpandableListView mBookmarksList;
@@ -147,22 +150,20 @@ public class OpenExplorer
 	private IconContextMenu mMenuPopup;
 	private static OnBookMarkChangeListener mBookmarkListener;
 	
-	private EventHandler mEvHandler;
-	private FileManager mFileManager;
+	private static final FileManager mFileManager = new FileManager();
+	private static final EventHandler mEvHandler = new EventHandler(mFileManager);
 	
 	private FragmentManager fragmentManager;
 	
-	private OpenCursor mPhotoParent, mVideoParent, mMusicParent, mApkParent;
-	
 	private Boolean mSinglePane = false;
 	
-	public int getViewMode() { return mViewMode; }
-	public void setViewMode(int mode) { mViewMode = mode; }
+	public static int getViewMode() { return mViewMode; }
+	public static void setViewMode(int mode) { mViewMode = mode; }
     
     @SuppressWarnings("unused")
 	public void onCreate(Bundle savedInstanceState) {
     	
-    	if(BEFORE_HONEYCOMB || !USE_ACTION_BAR)
+    	if(BEFORE_HONEYCOMB)
     		requestWindowFeature(Window.FEATURE_NO_TITLE);
     	else {
 	        requestWindowFeature(Window.FEATURE_ACTION_BAR);
@@ -200,11 +201,14 @@ public class OpenExplorer
         
         if(!BEFORE_HONEYCOMB)
         {
-        	setTheme(android.R.style.Theme_Holo);
-            if(USE_ACTION_BAR && findViewById(R.id.title_bar) != null)
-            	findViewById(R.id.title_bar).setVisibility(View.GONE);
+        	if(findViewById(R.id.title_bar) == null)
+            {
+        		setTheme(android.R.style.Theme_Holo);
+                USE_ACTION_BAR = true;
+            	invalidateOptionsMenu();
+            } else setTheme(android.R.style.Theme_Holo_NoActionBar);
         } else {
-        	setTheme(android.R.style.Theme_Black);
+        	setTheme(android.R.style.Theme_Black_NoTitleBar);
         }
         if(BEFORE_HONEYCOMB || !USE_ACTION_BAR)
         {
@@ -227,6 +231,8 @@ public class OpenExplorer
         
         if(mFavoritesFragment == null)
         	mFavoritesFragment = new BookmarkFragment();
+        
+        manageLoaders();
 
         if(mSinglePane || !USE_ACTION_BAR)
         {
@@ -235,9 +241,9 @@ public class OpenExplorer
 	    	mBookmarksPopup.setContentView(mBookmarksList);
 			//mBookmarksPopup.setBackgroundDrawable(getResources().getDrawable(R.drawable.contextmenu_opentop));
 			mBookmarks = new OpenBookmarks(this, mBookmarksList);
+			for(int i=0; i < mBookmarksList.getCount(); i++)
+				mBookmarksList.expandGroup(i);
         }
-        
-        refreshCursors();
         
         String start = getPreferences().getString("0_global", "pref_start", "Videos");
 
@@ -250,20 +256,20 @@ public class OpenExplorer
         	else if(last.indexOf(":/") > -1)
         		path = new OpenFTP(last, null, new FTPManager());
         	else if(last.equals("Videos"))
-        		path = mVideoParent;
+        		path = OpenCursor.getVideoParent();
         	else if(last.equals("Photos"))
-        		path = mPhotoParent;
+        		path = OpenCursor.getPhotoParent();
         	else if(last.equals("Music"))
-        		path = mMusicParent;
+        		path = OpenCursor.getMusicParent();
         	else
         		path = new OpenFile(last);
         }
         else if("/".equals(start))
         	path = new OpenFile("/");
-        else if("Videos".equals(start) && mVideoParent != null && mVideoParent.length() > 0)
-        	path = mVideoParent;
-        else if("Photos".equals(start) && mPhotoParent != null && mPhotoParent.length() > 0)
-        	path = mPhotoParent;
+        else if("Videos".equals(start) && OpenCursor.hasVideos())
+        	path = OpenCursor.getVideoParent();
+        else if("Photos".equals(start) && OpenCursor.hasPhotos())
+        	path = OpenCursor.getPhotoParent();
         else
         	path = new OpenFile(Environment.getExternalStorageDirectory());
         
@@ -289,13 +295,15 @@ public class OpenExplorer
         
         if(Build.VERSION.SDK_INT > 11 && !IS_DEBUG_BUILD && savedInstanceState == null)
         {
-        	if(mVideoParent != null && mVideoParent.length() > 1 && "Videos".equals(start))
+        	OpenCursor vids = OpenCursor.getVideoParent();
+        	OpenCursor pics = OpenCursor.getPhotoParent();
+        	if(vids != null && vids.length() > 1 && "Videos".equals(start))
         	{
         		mViewMode = VIEW_CAROUSEL;
-        		path = mLastPath = mVideoParent;
-        	} else if (mPhotoParent != null && mPhotoParent.length() > 1 && "Photos".equals(start)) {
+        		path = mLastPath = vids;
+        	} else if (pics != null && pics.length() > 1 && "Photos".equals(start)) {
         		mViewMode = VIEW_CAROUSEL;
-        		path = mLastPath = mPhotoParent;
+        		path = mLastPath = pics;
         	} else mViewMode = VIEW_LIST;
         	
         	if(mViewMode == VIEW_CAROUSEL)
@@ -322,11 +330,6 @@ public class OpenExplorer
         
         updateTitle(mLastPath.getPath());
         
-        if(mFileManager == null)
-        	mFileManager = new FileManager();
-        if(mEvHandler == null)
-        	mEvHandler = new EventHandler(mFileManager);
-        
         //mPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         handleMediaReceiver();
         
@@ -343,6 +346,36 @@ public class OpenExplorer
 
     }
     
+    private void manageLoaders()
+    {
+    	//LoaderManager lm 
+    	//new Thread(new Runnable() {
+		//	public void run() {
+				OpenCursor.refreshCursors(getApplicationContext());
+		//	}
+		//}).run();
+        //refreshCursors();
+    }
+
+	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+		
+	}
+	public void onLoaderReset(Loader<Cursor> loader) {
+		// TODO Auto-generated method stub
+		
+	}
+    
+    @Override
+    protected void onResume() {
+    	super.onResume();
+    	if(!mSinglePane)
+    		((BookmarkFragment)mFavoritesFragment).expandAll();
+    }
+    
     public void setBookmarksPopupListAdapter(ListAdapter adapter)
     {
     	mBookmarksList.setAdapter(adapter);
@@ -353,6 +386,7 @@ public class OpenExplorer
     	super.onStart();
     	setupLoggingDb();
 		submitStats();
+		OpenCursor.refreshCursors(getApplicationContext());
 		if(mFavoritesFragment != null)
 			((BookmarkFragment)mFavoritesFragment).scanBookmarks();
     }
@@ -494,7 +528,7 @@ public class OpenExplorer
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
     	super.onPostCreate(savedInstanceState);
-    	ensureCursorCache();
+    	OpenCursor.ensureCursorCache();
     	/*
     	if(mSettingsListener != null)
         {
@@ -543,139 +577,25 @@ public class OpenExplorer
     	updateClipboard();
     }
     
-    public OpenCursor getPhotoParent() { if(mPhotoParent == null) refreshCursors(); return mPhotoParent; }
-    public OpenCursor getVideoParent() { if(mVideoParent == null) refreshCursors(); return mVideoParent; }
-    public OpenCursor getMusicParent() { if(mMusicParent == null) refreshCursors(); return mMusicParent; }
-    
-    private void refreshCursors()
-    {
-		if(mVideoParent == null)
-    	{
-			//if(!IS_DEBUG_BUILD)
-			try {
-				CursorLoader loader = new CursorLoader(getApplicationContext(),
-						Uri.parse("content://media/external/video/media"),
-						new String[]{"_id", "_display_name", "_data", "_size", "date_modified"},
-						MediaStore.Video.Media.SIZE + " > 100000", null,
-						MediaStore.Video.Media.BUCKET_DISPLAY_NAME + " ASC, " +
-						MediaStore.Video.Media.DATE_MODIFIED + " DESC");
-				Cursor c = loader.loadInBackground();
-    			if(c != null)
-    			{
-    				mVideoParent = new OpenCursor(c, "Videos");
-    				c.close();
-    			}
-    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query videos.", e); }
-    	}
-    	if(mPhotoParent == null)
-    	{
-    		try {
-    			CursorLoader loader = new CursorLoader(getApplicationContext(),
-    					Uri.parse("content://media/external/images/media"),
-						new String[]{"_id", "_display_name", "_data", "_size", "date_modified"},
-						MediaStore.Images.Media.SIZE + " > 10000", null,
-						MediaStore.Images.Media.DATE_ADDED + " DESC");
-    			Cursor c = loader.loadInBackground();
-    			if(c != null)
-    			{
-    				mPhotoParent = new OpenCursor(c, "Photos");
-    				c.close();
-    			}
-    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query photos.", e); }
-		}
-		if(mMusicParent == null)
-		{
-			try {
-				CursorLoader loader = new CursorLoader(getApplicationContext(),
-						Uri.parse("content://media/external/audio/media"),
-						new String[]{"_id", "_display_name", "_data", "_size", "date_modified"},
-						MediaStore.Audio.Media.SIZE + " > 10000", null,
-						MediaStore.Audio.Media.DATE_ADDED + " DESC");
-				Cursor c = loader.loadInBackground();
-    			if(c != null)
-    			{
-    				mMusicParent = new OpenCursor(c, "Music");
-    				c.close();
-    			}
-    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query music.", e); }
-		}
-		if(mApkParent == null && Build.VERSION.SDK_INT > 10)
-		{
-			try {
-				CursorLoader loader = new CursorLoader(getApplicationContext(),
-						MediaStore.Files.getContentUri(Environment.getExternalStorageDirectory().getPath()),
-						new String[]{"_id", "_display_name", "_data", "_size", "date_modified"},
-						"_size > 10000 AND _data LIKE '%apk'", null,
-						"date modified DESC");
-				Cursor c = loader.loadInBackground();
-				if(c != null)
-				{
-					mApkParent = new OpenCursor(c, "Apps");
-					c.close();
-				}
-			} catch(IllegalStateException e) { Logger.LogError("Couldn't get Apks.", e); }
-		}
-		//Cursor mAudioCursor = managedQuery(MediaStore.Audio, projection, selection, selectionArgs, sortOrder)
-		ensureCursorCache();
-    }
-    public void ensureCursorCache()
-    {
-    	if(mLastCursorEnsure == 0 || new Date().getTime() - mLastCursorEnsure < 10000) // at least 10 seconds
-    		return;
-    	mLastCursorEnsure = new Date().getTime();
-    	
-    	// group into blocks
-    	int iTotalSize = 0;
-    	for(OpenCursor cur : new OpenCursor[]{mVideoParent, mPhotoParent, mApkParent})
-    		if(cur != null)
-    			iTotalSize += cur.length();
-    	int enSize = Math.max(20, iTotalSize / 10);
-    	Logger.LogDebug("EnsureCursorCache size: " + enSize + " / " + iTotalSize);
-    	ArrayList<OpenPath> buffer = new ArrayList<OpenPath>(enSize);
-    	for(OpenCursor curs : new OpenCursor[]{mVideoParent, mPhotoParent, mApkParent})
-    	{
-    		if(curs == null) continue;
-	    	for(OpenMediaStore ms : curs.list())
-	    	{
-	    		buffer.add(ms);
-	    		if(buffer.size() == enSize)
-	    		{
-	    			OpenMediaStore[] buff = new OpenMediaStore[buffer.size()];
-	    			buffer.toArray(buff);
-	    			buffer.clear();
-	    			try {
-	    				new EnsureCursorCacheTask().execute(buff);
-	    			} catch(RejectedExecutionException e) {
-	    				Logger.LogWarning("Couldn't ensure cache.", e);
-	    				return;
-	    			}
-	    		}
-	    	}
-    	}
-    	if(buffer.size() > 0)
-    	{
-    		OpenMediaStore[] buff = new OpenMediaStore[buffer.size()];
-			buffer.toArray(buff);
-			buffer.clear();
-			try {
-				new EnsureCursorCacheTask().execute(buff);
-			} catch(RejectedExecutionException e) {
-				Logger.LogWarning("Couldn't ensure cache.", e);
-				return;
-			}
-    	}
-    	mLastCursorEnsure = new Date().getTime();
-    }
     
 
+    public void toggleBookmarks()
+    {
+    	View mBookmarks = findViewById(R.id.list_frag);
+    	toggleBookmarks(mBookmarks == null || mBookmarks.getVisibility() == View.GONE);
+    }
+    
 	public void toggleBookmarks(Boolean visible)
 	{
 		if(!mSinglePane) return;
 		if(mBookmarksPopup != null)
 		{
 			if(visible)
-				mBookmarksPopup.showLikeQuickAction(0,0, 20);
-			else
+			{
+				for(int i=0; i < mBookmarksList.getCount(); i++)
+					mBookmarksList.expandGroup(i);
+				mBookmarksPopup.showLikeQuickAction(0, 0, 20);
+			} else
 				mBookmarksPopup.dismiss();
 		} else {
 			View v = findViewById(R.id.list_frag);
@@ -702,15 +622,9 @@ public class OpenExplorer
 		}
 	}
 	
-    public void toggleBookmarks()
-    {
-    	View mBookmarks = findViewById(R.id.list_frag);
-    	toggleBookmarks(mBookmarks == null || mBookmarks.getVisibility() == View.GONE);
-    }
-    
     public void refreshBookmarks()
     {
-    	refreshCursors();
+    	OpenCursor.refreshCursors(this);
     	if(mFavoritesFragment == null)
     	{
     		mFavoritesFragment = new BookmarkFragment();
@@ -1014,13 +928,15 @@ public class OpenExplorer
 	    		return true;
 	    		
 	    	case R.id.menu_sort:
-	    		showMenu(R.menu.menu_sort, from);
+	    		if(!USE_ACTION_BAR && USE_PRETTY_MENUS)
+	    			showMenu(R.menu.menu_sort, from);
 	    		return true;
 	    		
 	    	case R.id.menu_view:
 	    		//if(BEFORE_HONEYCOMB)
 	    		//	showMenu(item.getSubMenu(), from);
-	    		showMenu(R.menu.menu_view, from);
+	    		if(!USE_ACTION_BAR && USE_PRETTY_MENUS)
+	    			showMenu(R.menu.menu_view, from);
 	    		return true;
 	    		
 	    	case R.id.menu_sort_name_asc:	setSorting(FileManager.SortType.ALPHA); return true; 
@@ -1117,8 +1033,13 @@ public class OpenExplorer
 		getDirContentFragment(true).onSortingChanged(sort);
 	}
 	
-	public void showMenu() { showMenu(R.menu.main_menu_top); }
-	public void showMenu(int menuId) { showMenu(menuId, findViewById(R.id.title_menu)); }
+	public void showMenu() {
+		if(USE_PRETTY_MENUS)
+			showMenu(R.menu.main_menu_top, findViewById(R.id.title_menu));
+		else
+			openOptionsMenu();
+		//showMenu(R.menu.main_menu_top);
+	}
 	public void showMenu(int menuId, final View from)
 	{
 		//if(mMenuPopup == null)
@@ -1316,9 +1237,9 @@ public class OpenExplorer
     			if(!start.equals(mLastPath.getPath()))
     			{
 	    			if("Videos".equals(start))
-	    				changePath(mVideoParent, true);
+	    				changePath(OpenCursor.getVideoParent(), true);
 	    			else if("Photos".equals(start))
-	    				changePath(mPhotoParent, true);
+	    				changePath(OpenCursor.getPhotoParent(), true);
 	    			else if("External".equals(start))
 	    				changePath(new OpenFile(Environment.getExternalStorageDirectory()), true);
 	    			else
@@ -1499,14 +1420,6 @@ public class OpenExplorer
 	public EventHandler getEventHandler() {
 		return mEvHandler;
 	}
-
-	public void setFileManager(FileManager man) {
-		mFileManager = man;
-	}
-	public void setEventHandler(EventHandler handler)
-	{
-		mEvHandler = handler;
-	}
 	
 	public class SubmitStatsTask extends AsyncTask<String, Void, Void>
 	{
@@ -1562,40 +1475,6 @@ public class OpenExplorer
 		
 	}
 	
-	public class EnsureCursorCacheTask extends AsyncTask<OpenPath, Void, Void>
-	{
-		@Override
-		protected Void doInBackground(OpenPath... params) {
-			int done = 0;
-			for(OpenPath path : params)
-			{
-				if(path.isDirectory())
-				{
-					try {
-						for(OpenPath kid : path.list())
-						{
-							ThumbnailCreator.generateThumb(kid, 36, 36);
-							ThumbnailCreator.generateThumb(kid, 96, 96);
-							done++;
-						}
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				} else {
-					if(!ThumbnailCreator.hasContext())
-						ThumbnailCreator.setContext(getApplicationContext());
-					ThumbnailCreator.generateThumb(path, 36, 36);
-					ThumbnailCreator.generateThumb(path, 96, 96);
-					done++;
-				}
-			}
-			//Logger.LogDebug("cursor cache of " + done + " generated.");
-			return null;
-		}
-		
-	}
-
 
 	public void showFileInfo(OpenPath path) {
 		DialogHandler dialogInfo = DialogHandler.newDialog(DialogHandler.DialogType.FILEINFO_DIALOG, this);
@@ -1695,5 +1574,13 @@ public class OpenExplorer
 		}
 		
 	}
+
+	public static FileManager getManager() { return mFileManager; }
+
+	public static EventHandler getHandler() {
+		return mEvHandler;
+	}
+
+
 }
 
