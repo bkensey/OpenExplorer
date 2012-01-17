@@ -929,15 +929,19 @@ public class OpenExplorer
 	    		
 	    	case R.id.menu_sort:
 	    		if(!USE_ACTION_BAR && USE_PRETTY_MENUS)
+	    		{
 	    			showMenu(R.menu.menu_sort, from);
-	    		return true;
+	    			return true;
+	    		} else return false;
 	    		
 	    	case R.id.menu_view:
 	    		//if(BEFORE_HONEYCOMB)
 	    		//	showMenu(item.getSubMenu(), from);
 	    		if(!USE_ACTION_BAR && USE_PRETTY_MENUS)
+	    		{
 	    			showMenu(R.menu.menu_view, from);
-	    		return true;
+	    			return true;
+	    		} else return false;
 	    		
 	    	case R.id.menu_sort_name_asc:	setSorting(FileManager.SortType.ALPHA); return true; 
 	    	case R.id.menu_sort_name_desc:	setSorting(FileManager.SortType.ALPHA_DESC); return true; 

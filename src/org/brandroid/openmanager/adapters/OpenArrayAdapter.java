@@ -57,6 +57,10 @@ public class OpenArrayAdapter extends ArrayAdapter<OpenPath> {
 		}
 	});
 	
+	public OpenPath getItem(int position) {
+		return super.getItem(position);
+	}
+	
 	////@Override
 	public View getView(int position, View view, ViewGroup parent)
 	{

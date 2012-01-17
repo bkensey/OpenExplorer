@@ -43,6 +43,15 @@ public class OpenCursorAdapter extends CursorAdapter
 		return null;
 	}
 	
+	public OpenCursorAdapter setLayout(int layoutId) { mLayoutID = layoutId; return this; }
+	public OpenCursorAdapter setParent(OpenCursor parent) { mParent = parent; return this; } 
+	
+	@Override
+	public OpenMediaStore getItem(int position) {
+		mCursor.moveToPosition(position);
+		return new OpenMediaStore(mParent, getCursor());
+	}
+	
 	@Override
 	public View getView(int pos, View view, ViewGroup parent)
 	{
@@ -53,32 +62,37 @@ public class OpenCursorAdapter extends CursorAdapter
 		if(OpenExplorer.getViewMode() == OpenExplorer.VIEW_GRID)
 			mWidth = mHeight = 128;
 		
-		BookmarkHolder mHolder = null;
-		
 		if(view == null) {
 			LayoutInflater in = (LayoutInflater)mContext
 									.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 			
-			view = in.inflate(OpenExplorer.getViewMode() == OpenExplorer.VIEW_GRID ?
-						R.layout.grid_content_layout : R.layout.list_content_layout
-					, parent, false);
+			view = in.inflate(mLayoutID, parent, false);
 		}
 
 		String path = mCursor.getString(mCursor.getColumnIndex("_data"));
-		OpenFile file = new OpenFile(path);
+		//OpenFile file = new OpenFile(path);
 		
 		if(view.findViewById(R.id.content_fullpath) != null)
-			((TextView)view.findViewById(R.id.content_fullpath)).setText(path);
+			((TextView)view.findViewById(R.id.content_fullpath)).setText(path.subSequence(0, path.lastIndexOf("/")));
 		((TextView)view.findViewById(R.id.content_text)).setText(mName);
 		
 		ImageView img = ((ImageView)view.findViewById(R.id.content_icon));
 		
-		SoftReference<Bitmap> sr = file.getThumbnail(mWidth, mHeight, false, false); // ThumbnailCreator.generateThumb(file, mWidth, mHeight, false, false, getContext());
-		//Bitmap b = ThumbnailCreator.getThumbnailCache(file.getPath(), mWidth, mHeight);
-		if(sr != null && sr.get() != null)
-			img.setImageBitmap(sr.get());
-		else
-			ThumbnailCreator.setThumbnail(img, file, mWidth, mHeight);
+		Bitmap b = ThumbnailCreator.getThumbnailCache(path, mWidth, mHeight);
+		if(b != null)
+		{
+			img.setImageBitmap(b);
+		} else {
+			SoftReference<Bitmap> sr = ThumbnailCreator.generateThumb(path, mWidth, mHeight, true, true, mContext);
+			if(sr != null && sr.get() != null)
+				img.setImageBitmap(sr.get());
+			else if(getCursor() instanceof OpenMediaStore)
+				ThumbnailCreator.setThumbnail(img, (OpenMediaStore)getCursor(), mWidth, mHeight);
+			else if(OpenCursor.class.equals(getCursor().getClass()))
+				ThumbnailCreator.setThumbnail(img, new OpenMediaStore((OpenCursor)getCursor(), getCursor()), mWidth, mHeight);
+			else
+				ThumbnailCreator.setThumbnail(img, new OpenFile(path), mWidth, mHeight);
+		}
 		
 		return view;
 	}

@@ -58,6 +58,7 @@ import android.database.Cursor;
 import android.database.DataSetObserver;
 import android.graphics.drawable.Drawable;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
+import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.SimpleCursorAdapter;
 import android.view.ActionMode;
@@ -147,11 +148,11 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 		//refreshData(savedInstanceState);
 		if(mData2 == null)
 			mData2 = new ArrayList<OpenPath>();
-		new Thread(new Runnable() {
-			public void run() {
+		//new Thread(new Runnable() {
+		//	public void run() {
 				refreshData(savedInstanceState);
-			}
-		}).run();
+		//	}
+		//}).run();
 	}
 	public void refreshData(Bundle savedInstanceState)
 	{
@@ -169,20 +170,7 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 			else
 				path = new OpenFile(Environment.getExternalStorageDirectory());
 		}
-		/*if(!path.requiresThread() && path.getListLength() < 100)
-			try {
-				mData = mFileManager.getChildren(path);
-			} catch (IOException e) {
-				Logger.LogError("Error getting children from FileManager for " + path, e);
-			}
-		else */ {
-			if(mContentAdapter != null)
-				mContentAdapter.notifyDataSetChanged();
-			if(mProgressBarLoading != null)
-				mProgressBarLoading.setVisibility(View.VISIBLE);
-			new FileIOTask().execute(new FileIOCommand(FileIOCommandType.ALL, path));
-		}
-		
+
 		mActionModeSelected = false;
 		try {
 			mShowThumbnails = getExplorer().getPreferences()
@@ -201,9 +189,28 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 					&& mPath != null
 					&& OpenFile.class.equals(mPath.getClass());
 		
+		/*if(!path.requiresThread() && path.getListLength() < 100)
+			try {
+				mData = mFileManager.getChildren(path);
+			} catch (IOException e) {
+				Logger.LogError("Error getting children from FileManager for " + path, e);
+			}
+		else */
+		if(OpenCursor.class.equals(path.getClass()))
+		{
+			Logger.LogDebug("Woo hoo!?");
+		} else
+		{
+			if(mContentAdapter != null)
+				mContentAdapter.notifyDataSetChanged();
+			if(mProgressBarLoading != null)
+				mProgressBarLoading.setVisibility(View.VISIBLE);
+			new FileIOTask().execute(new FileIOCommand(FileIOCommandType.ALL, path));
+			updateData(mData);
+		}
+		
 		//OpenExplorer.setOnSettingsChangeListener(this);
 		
-		updateData(mData);
 	}
 
 	//@Override
@@ -248,6 +255,32 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 	@Override
 	public void onActivityCreated(Bundle savedInstanceState) {
 		super.onActivityCreated(savedInstanceState);
+		if(OpenCursor.class.equals(mPath.getClass()))
+		{
+			mContentAdapter = new OpenCursorAdapter(mContext, null, 0, null, mLayoutID);
+			mGrid.setAdapter(mContentAdapter);
+			mGrid.setVisibility(View.GONE);
+			mProgressBarLoading.setVisibility(View.VISIBLE);
+			int type = OpenCursor.CURSOR_TYPE_ANY;
+			if(mPath.getName().equalsIgnoreCase("Videos"))
+				type = OpenCursor.CURSOR_TYPE_VIDEO;
+			else if(mPath.getName().equalsIgnoreCase("Photos"))
+				type = OpenCursor.CURSOR_TYPE_PHOTO;
+			else if(mPath.getName().equalsIgnoreCase("Music"))
+				type = OpenCursor.CURSOR_TYPE_MUSIC;
+			else if(mPath.getName().equalsIgnoreCase("Downloads"))
+				type = OpenCursor.CURSOR_TYPE_DOWNLOADS;
+			else if(mPath.getName().equalsIgnoreCase("Apps"))
+				type = OpenCursor.CURSOR_TYPE_APK;
+			if(OpenCursor.hasCursor(type))
+				onLoadFinished(null, OpenCursor.getSmartCursor(type));
+			else {
+				if(savedInstanceState == null)
+					savedInstanceState = new Bundle();
+				savedInstanceState.putString("where", "_data LIKE '" + mPath.getPath() + "%'");
+				getLoaderManager().initLoader(type, savedInstanceState, this);
+			}
+		}
 	}
 	
 	@Override
@@ -281,19 +314,41 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 		if(OpenExplorer.getViewMode() == OpenExplorer.VIEW_GRID) {
 			mLayoutID = R.layout.grid_content_layout;
 			mGrid.setNumColumns(GridView.AUTO_FIT);
-			mGrid.setVerticalSpacing(0);
-			mGrid.setHorizontalSpacing(0);
+			mGrid.setVerticalSpacing(10);
+			mGrid.setHorizontalSpacing(10);
 		} else {
 			mLayoutID = R.layout.list_content_layout;
 			mGrid.setNumColumns(1);
-			mGrid.setVerticalSpacing(10);
-			mGrid.setHorizontalSpacing(10);
+			mGrid.setVerticalSpacing(0);
+			mGrid.setHorizontalSpacing(0);
 		}
 		if(OpenCursor.class.equals(mPath.getClass())) {
-			mContentAdapter = new OpenCursorAdapter(mContext, (OpenCursor)mPath, 0, (OpenCursor)mPath, mLayoutID);
-		} else
+			if(mContentAdapter != null && OpenCursorAdapter.class.equals(mContentAdapter.getClass()))
+			{
+				((OpenCursorAdapter)mContentAdapter)
+					.setLayout(mLayoutID)
+					.setParent((OpenCursor)mPath);
+				//getLoaderManager().initLoader(((OpenCursor)mPath).getCursorType(), null, this);
+			}
+			else
+			{
+				mContentAdapter = new OpenCursorAdapter(mContext, (OpenCursor)mPath, 0, (OpenCursor)mPath, mLayoutID);
+				mGrid.setAdapter(mContentAdapter);
+			}
+		} else {
+			if(mContentAdapter != null && OpenCursorAdapter.class.equals(mContentAdapter.getClass()))
+				((OpenCursorAdapter)mContentAdapter).swapCursor(null);
 			mContentAdapter = new OpenArrayAdapter(mContext, mLayoutID, mData2);
-		mGrid.setAdapter(mContentAdapter);
+			mGrid.setAdapter(mContentAdapter);
+		}
+		setupGridView();
+	}
+	public void setupGridView()
+	{
+		if(mGrid.getTag() == null)
+			mGrid.setTag(true);
+		else return; // only do the following the first time
+		
 		mGrid.setSelector(R.drawable.selector_blue);
 		mGrid.setVisibility(View.VISIBLE);
 		mGrid.setOnItemClickListener(this);
@@ -318,7 +373,8 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 			//@Override
 			@SuppressWarnings("unused")
 			public boolean onItemLongClick(AdapterView<?> list, View view ,int pos, long id) {
-				final OpenPath file = mData2.get(pos);
+				
+				final OpenPath file = (OpenPath)((BaseAdapter)list.getAdapter()).getItem(pos);
 				final String name = file.getPath().substring(file.getPath().lastIndexOf("/")+1);
 				if(OpenExplorer.BEFORE_HONEYCOMB || !USE_ACTIONMODE) {
 					mMenuContextItemIndex = pos;
@@ -1038,7 +1094,7 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 	}
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
 		String sort = null;
-		switch(OpenPath.Sorting)
+		switch(mFileManager.getSorting())
 		{
 		case ALPHA:
 			sort = "_display_name";
@@ -1059,17 +1115,27 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 			sort = "_size DESC";
 			break;
 		}
-		return OpenCursor.createCursorLoader(mContext, id, 10000, sort);
+		CursorLoader loader = OpenCursor.createCursorLoader(mContext, id, "_size > 10000", sort);
+		Logger.LogDebug("Loader created!");
+		return loader;
 	}
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-		if(SimpleCursorAdapter.class.equals(mContentAdapter.getClass()))
-			((SimpleCursorAdapter)mContentAdapter).swapCursor(data);
+		Logger.LogDebug("Loader finished!");
+		mProgressBarLoading.setVisibility(View.GONE);
+		if(OpenCursorAdapter.class.equals(mContentAdapter.getClass()))
+			((OpenCursorAdapter)mContentAdapter).swapCursor(data);
 		else {
+			onLoaderReset(loader);
+			mContentAdapter = new OpenCursorAdapter(mContext, data, 0, ((OpenCursor)mPath), mLayoutID);
+			mGrid.setAdapter(mContentAdapter);
 			//mContentAdapter = new SimpleCursorAdapter(mContext, mListLayoutID, data, )
 		}
+		mGrid.setVisibility(View.VISIBLE);
 	}
 	public void onLoaderReset(Loader<Cursor> loader) {
-		
+		Logger.LogDebug("Loader reset!");
+		if(OpenCursorAdapter.class.equals(mContentAdapter.getClass()))
+			((OpenCursorAdapter)mContentAdapter).swapCursor(null);
 	}
 }
 

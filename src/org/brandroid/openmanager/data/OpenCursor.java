@@ -31,7 +31,7 @@ public class OpenCursor
 	extends OpenPath // Actual object is the "Parent" of the OpenMediaStore children 
 	implements Cursor // when referenced as Cursor, object represents the children
 {
-	private static OpenCursor mPhotoParent, mVideoParent, mMusicParent, mApkParent, mDownloadParent;
+	private static OpenCursor[] mSmartFolders = new OpenCursor[5]; // mVideoParent, mPhotoParent, mMusicParent, mApkParent, mDownloadParent;
 	private static long mLastCursorEnsure = 0;
 	
 	private static final long serialVersionUID = -8828123354531942575L;
@@ -41,19 +41,23 @@ public class OpenCursor
 	private OpenMediaStore[] mChildren;
 	private String mName;
 	private Long mTotalSize = 0l;
+	private int mType = CURSOR_TYPE_ANY;
 	
 	public static final int CURSOR_TYPE_VIDEO = 0;
 	public static final int CURSOR_TYPE_PHOTO = 1;
 	public static final int CURSOR_TYPE_MUSIC = 2;
 	public static final int CURSOR_TYPE_APK = 3;
 	public static final int CURSOR_TYPE_DOWNLOADS = 4;
+	public static final int CURSOR_TYPE_ANY = 5;
 	
-	public OpenCursor(Cursor c, String name)
+	public OpenCursor(Cursor c, String name, int type)
 	{
+		Logger.LogDebug("Creating OpenCursor for " + mName + "...");
 		mName = name;
 		if(CURSOR_MODE) {
 			mCursor = c;
-			moveToFirst();
+			if(c != null)
+				moveToFirst();
 			return;
 		}
 		if(c == null) return;
@@ -71,6 +75,7 @@ public class OpenCursor
 		}
 		mChildren = new OpenMediaStore[kids.size()];
 		mChildren = kids.toArray(mChildren);
+		mType = type;
 	}
 
 	@Override
@@ -90,6 +95,7 @@ public class OpenCursor
 
 	@Override
 	public long length() {
+		if(mCursor == null) return 0;
 		return mChildren != null ? mChildren.length : mCursor.getCount();
 	}
 
@@ -217,7 +223,7 @@ public class OpenCursor
 		return mTotalSize;
 	}
 	
-	public static CursorLoader createCursorLoader(Context context, int type, int minSize, String sort)
+	public static CursorLoader createCursorLoader(Context context, int type, String where, String sort)
 	{
 		Uri base = null;
 		switch(type)
@@ -232,65 +238,65 @@ public class OpenCursor
 				base = Uri.parse("content://media/external/audio/media");
 				break;
 			case CURSOR_TYPE_APK:
-				base = android.providercompat.MediaStore.Files.getContentUri(Environment.getExternalStorageDirectory().getPath());
+				base = Uri.parse("content://media///file");
+				where = (where == null ? "" : where + " AND ") + "_data LIKE '%apk'";
 				break;
 			case CURSOR_TYPE_DOWNLOADS:
-				base = android.providercompat.MediaStore.Files.getContentUri(Environment.getExternalStorageDirectory().getPath());
+				base = Uri.parse("content://media///file");
+				where = (where == null ? "" : where + " AND ") + "_data LIKE '%download%'";
+				break;
+			case CURSOR_TYPE_ANY:
+				base = Uri.parse("content://media///file");
 				break;
 		}
 		if(base == null) return null;
+		Logger.LogInfo("createCursorLoader for " + base.toString());
 		return new CursorLoader(context,
 				base,
 				new String[]{"_id", "_display_name", "_data", "_size", "date_modified"},
-				minSize <= 0 ? null : " _size > " + minSize, null,
+				where, null,
 				sort);
 	}
 	
 	public static void refreshCursors(Context context)
     {
-		if(mVideoParent == null)
-    	{
-			//if(!IS_DEBUG_BUILD)
-			try {
-				mVideoParent = new OpenCursor(
-						createCursorLoader(context, CURSOR_TYPE_VIDEO, 100000, null).loadInBackground(),
-						"Videos");
-    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query videos.", e); }
-    	}
-    	if(mPhotoParent == null)
-    	{
-    		try {
-    			mPhotoParent = new OpenCursor(
-    					createCursorLoader(context, CURSOR_TYPE_PHOTO, 10000, null).loadInBackground(),
-    					"Photos");
-    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query photos.", e); }
-		}
-		if(mMusicParent == null)
+		for(int i = 0; i < mSmartFolders.length; i++)
 		{
-			try {
-				mMusicParent = new OpenCursor(
-						createCursorLoader(context, CURSOR_TYPE_MUSIC, 10000, null).loadInBackground(),
-						"Music");
-    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query music.", e); }
-		}
-		if(mApkParent == null && Build.VERSION.SDK_INT > 10)
-		{
-			try {
-				mApkParent = new OpenCursor(
-						createCursorLoader(context, CURSOR_TYPE_APK, 100, null).loadInBackground(),
-						"Apps");
-			} catch(IllegalStateException e) { Logger.LogError("Couldn't get Apks.", e); }
-		}
-		if(mDownloadParent == null)
-		{
-			if(Build.VERSION.SDK_INT > 10)
+			if(mSmartFolders[i] != null) continue;
+			String where = null;
+			String title = "";
+			String sort = null;
+			switch(i)
 			{
-				mDownloadParent = new OpenCursor(
-						createCursorLoader(context, CURSOR_TYPE_DOWNLOADS, -1, null).loadInBackground(),
-						"Downloads");
+				case CURSOR_TYPE_VIDEO:
+					where = "_size > 100000";
+					title = "Videos";
+					break;
+				case CURSOR_TYPE_PHOTO:
+					where = "_size > 10000";
+					title = "Photos";
+					break;
+				case CURSOR_TYPE_MUSIC:
+					where = "_size > 10000";
+					title = "Music";
+					break;
+				case CURSOR_TYPE_APK:
+					where = "_size > 100";
+					title = "Apps";
+					break;
+				case CURSOR_TYPE_DOWNLOADS:
+					title = "Downloads";
+					break;
 			}
-			
+			try {
+				CursorLoader loader = createCursorLoader(context, i, where, sort);
+				if(loader != null)
+					mSmartFolders[i] = new OpenCursor(
+							loader.loadInBackground(),
+							title, i);
+    		} catch(IllegalStateException e) { Logger.LogError("Couldn't query " + title + ".", e); }
 		}
+		
 		//Cursor mAudioCursor = managedQuery(MediaStore.Audio, projection, selection, selectionArgs, sortOrder)
 		ensureCursorCache();
     }
@@ -304,13 +310,13 @@ public class OpenCursor
     	
     	// group into blocks
     	int iTotalSize = 0;
-    	for(OpenCursor cur : new OpenCursor[]{mVideoParent, mPhotoParent, mApkParent})
+    	for(OpenCursor cur : mSmartFolders)
     		if(cur != null)
     			iTotalSize += cur.length();
     	int enSize = Math.max(20, iTotalSize / 10);
     	Logger.LogDebug("EnsureCursorCache size: " + enSize + " / " + iTotalSize);
     	ArrayList<OpenPath> buffer = new ArrayList<OpenPath>(enSize);
-    	for(OpenCursor curs : new OpenCursor[]{mVideoParent, mPhotoParent, mApkParent})
+    	for(OpenCursor curs : mSmartFolders)
     	{
     		if(curs == null) continue;
 	    	for(OpenMediaStore ms : curs.list())
@@ -346,18 +352,18 @@ public class OpenCursor
     }
     
     public static boolean hasVideos() {
-    	return mVideoParent != null && mVideoParent.length() > 0;
+    	return mSmartFolders[CURSOR_TYPE_VIDEO] != null && mSmartFolders[CURSOR_TYPE_VIDEO].length() > 0;
     }
     
     public static boolean hasPhotos() {
-    	return mPhotoParent != null && mPhotoParent.length() > 0;
+    	return mSmartFolders[CURSOR_TYPE_PHOTO] != null && mSmartFolders[CURSOR_TYPE_PHOTO].length() > 0;
     }
     
-    public static OpenCursor getPhotoParent() { return mPhotoParent; }
-    public static OpenCursor getVideoParent() { return mVideoParent; }
-    public static OpenCursor getMusicParent() { return mMusicParent; }
-    public static OpenCursor getApkParent() { return mApkParent; }
-    public static OpenCursor getDownloadParent() { return mDownloadParent; }
+    public static OpenCursor getVideoParent() { return mSmartFolders[CURSOR_TYPE_VIDEO]; }
+    public static OpenCursor getPhotoParent() { return mSmartFolders[CURSOR_TYPE_PHOTO]; }
+    public static OpenCursor getMusicParent() { return mSmartFolders[CURSOR_TYPE_MUSIC]; }
+    public static OpenCursor getApkParent() { return mSmartFolders[CURSOR_TYPE_APK]; }
+    public static OpenCursor getDownloadParent() { return mSmartFolders[CURSOR_TYPE_DOWNLOADS]; }
 
 	public static class EnsureCursorCacheTask extends AsyncTask<OpenPath, Void, Void>
 	{
@@ -372,7 +378,7 @@ public class OpenCursor
 						for(OpenPath kid : path.list())
 						{
 							ThumbnailCreator.generateThumb(kid, 36, 36);
-							ThumbnailCreator.generateThumb(kid, 96, 96);
+							ThumbnailCreator.generateThumb(kid, 128, 128);
 							done++;
 						}
 					} catch (IOException e) {
@@ -383,7 +389,7 @@ public class OpenCursor
 					//if(!ThumbnailCreator.hasContext())
 					//	ThumbnailCreator.setContext(getApplicationContext());
 					ThumbnailCreator.generateThumb(path, 36, 36);
-					ThumbnailCreator.generateThumb(path, 96, 96);
+					ThumbnailCreator.generateThumb(path, 128, 128);
 					done++;
 				}
 			}
@@ -551,5 +557,21 @@ public class OpenCursor
 
 	public void unregisterDataSetObserver(DataSetObserver observer) {
 		mCursor.unregisterDataSetObserver(observer);
-	}	
+	}
+
+	public int getCursorType() {
+		return mType;
+	}
+
+	public static boolean hasCursor(int type) {
+		if(type < 0 || type >= mSmartFolders.length)
+			return false;
+		return mSmartFolders[type] != null;
+	}
+	public static OpenCursor getSmartCursor(int type)
+	{
+		if(type < 0 || type >= mSmartFolders.length)
+			return null;
+		return mSmartFolders[type];
+	}
 }

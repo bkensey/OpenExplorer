@@ -254,6 +254,19 @@ public class ThumbnailCreator extends Thread {
 	public static SoftReference<Bitmap> generateThumb(final OpenPath file, int mWidth, int mHeight) { return generateThumb(file, mWidth, mHeight, true, true, mContext); }
 	public static SoftReference<Bitmap> generateThumb(final OpenPath file, int mWidth, int mHeight, final boolean readCache, final boolean writeCache) { return generateThumb(file, mWidth, mHeight, readCache, writeCache, mContext); }
 	public static SoftReference<Bitmap> generateThumb(final OpenPath file, int mWidth, int mHeight, Context context) { return generateThumb(file, mWidth, mHeight, true, true, context); }
+	public static SoftReference<Bitmap> generateThumb(String path, int mWidth, int mHeight, final boolean readCache, final boolean writeCache, Context context)
+	{
+		Bitmap bmp = null;
+		String mCacheFilename = getCacheFilename(path, mWidth, mHeight);
+		
+		//we already loaded this thumbnail, just return it.
+		if (mCacheMap.get(mCacheFilename) != null) 
+			return new SoftReference<Bitmap>(mCacheMap.get(mCacheFilename));
+		if(readCache && bmp == null)
+			bmp = loadThumbnail(mCacheFilename);
+		
+		return generateThumb(new OpenFile(path), mWidth, mHeight, readCache, writeCache, context);
+	}
 	public static SoftReference<Bitmap> generateThumb(final OpenPath file, int mWidth, int mHeight, final boolean readCache, final boolean writeCache, Context context)
 	{
 		final boolean useLarge = mWidth > 72;
