@@ -49,6 +49,7 @@ import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.text.format.DateUtils;
+import android.util.Log;
 import android.view.ActionMode;
 import android.view.InflateException;
 import android.view.KeyEvent;
@@ -102,8 +103,10 @@ import org.brandroid.openmanager.ftp.FTPManager;
 import org.brandroid.openmanager.util.BetterPopupWindow;
 import org.brandroid.openmanager.util.EventHandler;
 import org.brandroid.openmanager.util.FileManager.SortType;
+import org.brandroid.openmanager.util.MimeTypes;
 import org.brandroid.openmanager.util.OpenChromeClient;
 import org.brandroid.openmanager.util.OpenInterfaces.OnBookMarkChangeListener;
+import org.brandroid.openmanager.util.MimeTypeParser;
 import org.brandroid.openmanager.util.OpenInterfaces;
 import org.brandroid.openmanager.util.RootManager;
 import org.brandroid.openmanager.util.FileManager;
@@ -115,6 +118,7 @@ import org.brandroid.utils.MenuBuilderNew;
 import org.brandroid.utils.Preferences;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.xmlpull.v1.XmlPullParserException;
 
 public class OpenExplorer
 		extends OpenFragmentActivity
@@ -132,6 +136,8 @@ public class OpenExplorer
 	private static boolean USE_PRETTY_MENUS = false;
 	public static boolean IS_DEBUG_BUILD = false;
 	public static final int REQUEST_CANCEL = 101;
+	
+	private static MimeTypes mMimeTypes;
 	
 	private Preferences mPreferences = null;
 	private SearchView mSearchView;
@@ -152,6 +158,7 @@ public class OpenExplorer
 	
 	private static final FileManager mFileManager = new FileManager();
 	private static final EventHandler mEvHandler = new EventHandler(mFileManager);
+	public static final boolean SHOW_FILE_DETAILS = false;
 	
 	private FragmentManager fragmentManager;
 	
@@ -170,9 +177,13 @@ public class OpenExplorer
     	}
         //requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
     	
+    	getMimeTypes();
     	setupLoggingDb();
         
         super.onCreate(savedInstanceState);
+        
+        if(!BEFORE_HONEYCOMB && getActionBar() == null)
+        	USE_ACTION_BAR = false;
         
     	try {
     		Signature[] sigs = getPackageManager().getPackageInfo(getPackageName(), PackageManager.GET_SIGNATURES).signatures;
@@ -315,6 +326,17 @@ public class OpenExplorer
         		home = new TextEditorFragment(new OpenFile(savedInstanceState.getString("edit_path")));
         		bAddToStack = false;
         	}
+        
+        Intent intent = getIntent();
+        if(intent != null && intent.getAction() != null &&
+        		(intent.getAction().equals(Intent.ACTION_EDIT) ||
+        				(intent.getAction().equals(Intent.ACTION_VIEW) && intent.getData() != null)))
+        {
+        	Uri file = intent.getData();
+        	Logger.LogInfo("Editing " + file.toString());
+        	home = new TextEditorFragment(new OpenFile(file.getPath()));
+        	bAddToStack = false;
+        }
 
         if(bAddToStack)
         {
@@ -336,7 +358,7 @@ public class OpenExplorer
 
         if(!getPreferences().getBoolean("0_global", "pref_splash", false))
         {
-        	Intent intent = new Intent(this, SplashActivity.class);
+        	intent = new Intent(this, SplashActivity.class);
         	intent.putExtra("start", mLastPath.getPath());
         	startActivityForResult(intent, REQ_SPLASH);
         }
@@ -640,8 +662,11 @@ public class OpenExplorer
     	Logger.LogDebug("getDirContentFragment");
     	Fragment ret = fragmentManager.findFragmentById(R.id.content_frag);
     	if(ret == null || !ret.getClass().equals(ContentFragment.class))
+    	{
+    		Logger.LogWarning("Do I need to create a new ContentFragment?");
    			ret = new ContentFragment(mLastPath);
-    	if(activate)
+    	}
+    	if(activate && !ret.isVisible())
     	{
     		Logger.LogDebug("Activating content fragment");
     		fragmentManager.beginTransaction()
@@ -656,7 +681,7 @@ public class OpenExplorer
 	public void updateTitle(String s)
     {
     	String t = getResources().getString(R.string.app_title) + (s.equals("") ? "" : " - " + s);
-    	if(BEFORE_HONEYCOMB || !USE_ACTION_BAR)
+    	if(BEFORE_HONEYCOMB || !USE_ACTION_BAR || getActionBar() == null)
     	{
     		if(findViewById(R.id.title_path) != null)
     			((TextView)findViewById(R.id.title_path)).setText(s);
@@ -717,12 +742,18 @@ public class OpenExplorer
     	if(menu.findItem(toCheck) != null)
     		menu.findItem(toCheck).setChecked(checked);
     }
-    
+
     public static void setMenuVisible(Menu menu, boolean visible, int... ids)
     {
     	for(int id : ids)
     		if(menu.findItem(id) != null)
     			menu.findItem(id).setVisible(visible);
+    }
+    public static void setMenuShowAsAction(Menu menu, int show, int... ids)
+    {
+    	for(int id : ids)
+    		if(menu.findItem(id) != null)
+    			menu.findItem(id).setShowAsAction(show);
     }
     
     public static void setMenuEnabled(Menu menu, boolean enabled, int... ids)
@@ -789,6 +820,10 @@ public class OpenExplorer
     public boolean onPrepareOptionsMenu(Menu menu) {
     	if(BEFORE_HONEYCOMB)
     		setMenuVisible(menu, false, R.id.menu_view_carousel);
+    	else if(getWindowManager().getDefaultDisplay().getWidth() < 500) {
+    		setMenuShowAsAction(menu, MenuItem.SHOW_AS_ACTION_NEVER, R.id.menu_sort, R.id.menu_view, R.id.menu_new_folder);
+    		setMenuVisible(menu, true, R.id.menu_menu);
+    	}
     	
     	if(!mSinglePane)
     		setMenuVisible(menu, false, R.id.menu_favorites);
@@ -841,6 +876,7 @@ public class OpenExplorer
     }
     public boolean onClick(int id, MenuItem item, View from)
     {
+    	super.onClick(id);
     	if(id != R.id.title_icon)
     		toggleBookmarks(false);
     	switch(id)
@@ -1004,7 +1040,9 @@ public class OpenExplorer
 	    		toggleBookmarks();
 	    		return true;
 	    		
+	    	case R.id.menu_menu:
 	    	case R.id.title_menu:
+	    		Logger.LogInfo("Show menu!");
 	    		showMenu();
 	    		return true;
 	    		
@@ -1039,7 +1077,7 @@ public class OpenExplorer
 	
 	public void showMenu() {
 		if(USE_PRETTY_MENUS)
-			showMenu(R.menu.main_menu_top, findViewById(R.id.title_menu));
+			showMenu(R.menu.main_menu, findViewById(R.id.title_menu));
 		else
 			openOptionsMenu();
 		//showMenu(R.menu.main_menu_top);
@@ -1048,7 +1086,7 @@ public class OpenExplorer
 	{
 		//if(mMenuPopup == null)
 		if(showContextMenu(menuId, from) == null)
-			if(menuId == R.menu.main_menu_top || menuId == R.menu.main_menu)
+			if(menuId == R.menu.main_menu || menuId == R.id.menu_menu)
 				openOptionsMenu();
 			else if (menuId == R.id.menu_sort)
 				showMenu(R.menu.menu_sort, from);
@@ -1155,6 +1193,35 @@ public class OpenExplorer
 			if(!BEFORE_HONEYCOMB)
 				invalidateOptionsMenu();
 		}
+	}
+    
+	private MimeTypes getMimeTypes()
+	{
+		return getMimeTypes(this);
+    }
+	
+	public static MimeTypes getMimeTypes(Context c)
+	{
+		if(mMimeTypes != null) return mMimeTypes;
+		MimeTypeParser mtp = null;
+		try {
+			mtp = new MimeTypeParser(c, c.getPackageName());
+		} catch (NameNotFoundException e) {
+			//Should never happen
+		}
+
+		XmlResourceParser in = c.getResources().getXml(R.xml.mimetypes);
+		
+		try {
+			 mMimeTypes = mtp.fromXmlResource(in);
+		} catch (XmlPullParserException e) {
+			Logger.LogError("Couldn't parse mimeTypes.", e);
+			throw new RuntimeException("PreselectedChannelsActivity: XmlPullParserException");
+		} catch (IOException e) {
+			Logger.LogError("PreselectedChannelsActivity: IOException", e);
+			throw new RuntimeException("PreselectedChannelsActivity: IOException");
+		}
+		return mMimeTypes;
 	}
 	
 	public String getSetting(OpenPath file, String key, String defValue)
@@ -1308,7 +1375,9 @@ public class OpenExplorer
 					Logger.LogWarning("No Breadcrumb Title");
 					updateTitle("");
 				}
-			} else if (mSinglePane) updateTitle("");
+			} else if (mSinglePane) {
+				finish();
+			}
 			else {
 				updateTitle("");
 				//showToast("Press back again to exit.");
@@ -1328,12 +1397,14 @@ public class OpenExplorer
 				ft.commit();
 			}
 		}
+		/*
 		if(Build.VERSION.SDK_INT > 10)
 		{
 			android.app.Fragment frag = getFragmentManager().findFragmentById(R.id.content_frag);
 			if(frag != null)
 				getFragmentManager().beginTransaction().hide(frag).commit();
 		}
+		*/
 		mLastBackIndex = i;
 	}
 	
@@ -1499,6 +1570,7 @@ public class OpenExplorer
     }
     
 	public void onClick(View v) {
+		super.onClick(v);
 		onClick(v.getId(), null, v);
 	}
 	public static String getVolumeName(String sPath2) {
