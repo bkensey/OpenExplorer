@@ -137,4 +137,5 @@
 	<string name="s_show_password">Show Password</string>
 	<string name="s_error_ftp">Error connecting to FTP</string>
 	<string name="s_prompt_zip">Enter filename of new Zip file:</string>
+	<string name="app_edit">Edit with OpenExplorer</string>
 </resources>

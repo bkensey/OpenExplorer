@@ -18,6 +18,15 @@
 		android:actionViewClass="android.widget.SearchView"
 		android:title="@string/s_search" />
 	<item
+	    android:id="@+id/menu_menu"
+	    android:icon="@drawable/ic_menu_moreoverflow"
+	    android:showAsAction="always"
+	    android:title="@android:string/status_bar_notification_info_overflow"
+	    android:visible="false"
+	    >
+	    <menu />
+	</item>
+	<item
 		android:id="@+id/menu_sort"
 		android:icon="@android:drawable/ic_menu_sort_by_size"
 		android:showAsAction="ifRoom"

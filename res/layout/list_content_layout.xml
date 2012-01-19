@@ -48,14 +48,18 @@
 		android:layout_below="@+id/content_text"
 		android:layout_alignLeft="@+id/content_text"
 		android:layout_toLeftOf="@+id/content_info"
-		android:gravity="left"
-		style="@style/Small" />
+		style="@style/Small"
+		android:ellipsize="start"
+		android:singleLine="true"
+		android:layout_width="wrap_content"
+		android:gravity="left" />
 	<TextView
 		android:id="@+id/content_info"
 		android:layout_alignParentRight="true"
 		android:layout_alignParentBottom="true"
 		android:gravity="right"
 		android:text=""
+		android:ellipsize="end"
 		android:typeface="monospace"
 		style="@style/Small" />
 </RelativeLayout>

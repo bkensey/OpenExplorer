@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -52,8 +53,9 @@ public class OpenIntentAdapter extends BaseAdapter
         
         res.setTag(item);
         res.setText(item.loadLabel(pm));
-        BitmapDrawable d = (BitmapDrawable)item.loadIcon(pm);
-        d.setGravity(Gravity.CENTER);
+        Drawable d = (Drawable)item.loadIcon(pm);
+        if(BitmapDrawable.class.equals(d))
+        	((BitmapDrawable)d).setGravity(Gravity.CENTER);
         res.setCompoundDrawablesWithIntrinsicBounds(d, null, null, null);
         
 		return res;

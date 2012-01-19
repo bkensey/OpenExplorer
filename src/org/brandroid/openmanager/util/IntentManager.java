@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.brandroid.openmanager.R;
 import org.brandroid.openmanager.activities.OpenExplorer;
+import org.brandroid.openmanager.data.OpenFile;
 import org.brandroid.openmanager.data.OpenPath;
 import org.brandroid.openmanager.util.OpenIntentChooser.IntentSelectedListener;
 import org.brandroid.utils.Logger;
@@ -35,110 +36,31 @@ public class IntentManager
 {
 	public static Intent getIntent(OpenPath file, Context activity)
 	{
+		return getIntent(file, activity, Intent.ACTION_VIEW, Intent.CATEGORY_DEFAULT);
+	}
+	public static Intent getIntent(OpenPath file, Context activity, String action, String... categories)
+	{
 		String name = file.getName();
 		final String ext = name.substring(name.lastIndexOf(".") + 1).toLowerCase();
 		
 		if(file.isDirectory()) return null;
 		
 		Intent ret = new Intent();
-		ret.setAction(Intent.ACTION_VIEW);
-		ret.addCategory(Intent.CATEGORY_DEFAULT);
+		ret.setAction(action);
+		for(String category : categories)
+			ret.addCategory(category);
 		//ret.putExtra(name, value)
 		//ret.set
 		
-		/*audio files*/
-		
-		if (ext.equalsIgnoreCase("mp3") || 
-				ext.equalsIgnoreCase("m4a") || 
-				ext.equalsIgnoreCase("wav") || 
-				ext.equalsIgnoreCase("wma") || 
-				ext.equalsIgnoreCase("ogg") ) {
-    		
-    		ret.setDataAndType(file.getUri(), "audio/" + ext);
-		}
-		
-		/* image files*/
-		else if(ext.equalsIgnoreCase("jpeg") || 
-    			ext.equalsIgnoreCase("jpg")  ||
-    			ext.equalsIgnoreCase("png")  ||
-    			ext.equalsIgnoreCase("bmp")  ||
-    			ext.equalsIgnoreCase("gif")  || 
-    			ext.equalsIgnoreCase("tiff")) {
-
-			ret.setDataAndType(file.getUri(), "image/" + ext.replace("pg", "peg"));
-    	}
-		
-		/*video file selected--add more video formats*/
-    	else if(ext.equalsIgnoreCase("m4v") ||
-    			ext.equalsIgnoreCase("mp4") ||
-    			ext.equalsIgnoreCase("3gp") ||
-    			ext.equalsIgnoreCase("wmv") || 
-    			ext.equalsIgnoreCase("png") ||
-    			ext.equalsIgnoreCase("mpg") ||
-    			ext.equalsIgnoreCase("mpeg")||
-    			ext.equalsIgnoreCase("ogg") ||
-    			ext.equalsIgnoreCase("avi")) {
-    		
-			ret.setDataAndType(file.getUri(), "video/" + ext.replace("pg", "peg"));
-    	}
-		
-		/*pdf file selected*/
-    	else if(ext.equalsIgnoreCase("pdf")) {
-    		
-    		if(file.exists()) {
-	    		ret.setDataAndType(file.getUri(), "application/pdf");
-	    	}
-    	}
-		
-		/*Android application file*/
-    	else if(ext.equalsIgnoreCase("apk")){
-    		
-    		if(file.exists()) {
-    			ret.setDataAndType(file.getUri(), "application/vnd.android.package-archive");
-    		}
-    	}
-		
-		/* HTML XML file */
-    	else if(ext.equalsIgnoreCase("html") 
-    			//ext.equalsIgnoreCase("xml")
-    			) {
-    		
-    		if(file.exists()) {
-    			ret.setDataAndType(file.getUri(), "text/html");
-    		}
-    	}
-		
-		/* ZIP files */
-    	else if(ext.equalsIgnoreCase("zip")) {
-    		/// TODO: implement internal unzipper
-    		ret.setDataAndType(file.getUri(), "application/zip");
-    	}
-		
-		/* text file*/
-    	else if(ext.equalsIgnoreCase("txt"))
-    	{
-    		Boolean bUseIntent = false;
-    		if(!bUseIntent && activity.getClass().equals(OpenExplorer.class))
-    		{
-    			((OpenExplorer)activity).editFile(file);
-    			return null;
-    		} else {
-    			ret.setDataAndType(file.getUri(), "text/plain");
-    		}
-    	} else {
-    		ret.setData(file.getUri());
-    	}
-		
-		if(ret != null)
-		{
-			PackageManager pm = activity.getPackageManager();
-			List<ResolveInfo> lApps = pm.queryIntentActivities(ret, 0);
-			for(ResolveInfo ri : lApps)
-				Logger.LogDebug("ResolveInfo: " + ri.toString());
-			if(lApps.size() == 0)
-				ret = null;
-		}
-		
+		String mimeType = OpenExplorer.getMimeTypes(activity).getMimeType(name);
+		ret.setDataAndType(file.getUri(), mimeType);
+    	
+		PackageManager pm = activity.getPackageManager();
+		List<ResolveInfo> lApps = pm.queryIntentActivities(ret, 0);
+		//for(ResolveInfo ri : lApps)
+		//	Logger.LogDebug("ResolveInfo: " + ri.toString());
+		if(lApps.size() == 0)
+			ret = null;
 		
 		/* generic intent */
     	//else ret.setDataAndType(file.getUri(), "application/*");

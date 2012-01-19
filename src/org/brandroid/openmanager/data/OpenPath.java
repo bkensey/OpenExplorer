@@ -120,6 +120,10 @@ public abstract class OpenPath implements Serializable, Parcelable, Comparable<O
 	{
 		setPath(in.readLine());
 	}
+
+	public String getExtension() {
+		return getPath().substring(getPath().lastIndexOf(".") + 1);
+	}
 	
 	public int describeContents() {
         return 0;
@@ -215,4 +219,5 @@ public abstract class OpenPath implements Serializable, Parcelable, Comparable<O
 	public int getColumnCount() {
 		return CursorColumns.length;
 	}
+	
 }

@@ -143,12 +143,17 @@ public class OpenArrayAdapter extends ArrayAdapter<OpenPath> {
 		DateFormat df = new SimpleDateFormat(longDate ? "MM-dd-yyyy HH:mm" : "MM-dd");
 		deets += df.format(file.lastModified());
 		
-		deets += " | ";
+		if(OpenExplorer.SHOW_FILE_DETAILS)
+		{
 		
-		deets += (file.isDirectory()?"d":"-");
-		deets += (file.canRead()?"r":"-");
-		deets += (file.canWrite()?"w":"-");
-		deets += (file.canExecute()?"x":"-");
+			deets += " | ";
+			
+			deets += (file.isDirectory()?"d":"-");
+			deets += (file.canRead()?"r":"-");
+			deets += (file.canWrite()?"w":"-");
+			deets += (file.canExecute()?"x":"-");
+			
+		}
 		
 		return deets;
 	}
