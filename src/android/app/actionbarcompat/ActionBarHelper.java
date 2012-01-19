@@ -43,7 +43,7 @@ public abstract class ActionBarHelper {
      * Honeycomb-specific helper will be returned.
      */
     public static ActionBarHelper createInstance(Activity activity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+        if (Build.VERSION.SDK_INT >= 14) {
             return new ActionBarHelperICS(activity);
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             return new ActionBarHelperHoneycomb(activity);
