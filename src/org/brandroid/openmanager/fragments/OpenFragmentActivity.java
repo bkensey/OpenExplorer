@@ -1,7 +1,13 @@
 package org.brandroid.openmanager.fragments;
 
+import org.brandroid.openmanager.R;
 import org.brandroid.openmanager.activities.OpenExplorer;
+import org.brandroid.openmanager.data.OpenClipboard;
+import org.brandroid.openmanager.data.OpenPath;
+import org.brandroid.openmanager.util.EventHandler;
+import org.brandroid.openmanager.util.FileManager;
 import org.brandroid.utils.Logger;
+import org.brandroid.utils.Preferences;
 
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
@@ -10,13 +16,24 @@ import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 public class OpenFragmentActivity
 			extends FragmentActivity
 			implements View.OnClickListener, View.OnLongClickListener
 {
+	private Preferences mPreferences = null;
+	
+	protected static final FileManager mFileManager = new FileManager();
+	protected static final EventHandler mEvHandler = new EventHandler(mFileManager);
+	protected static OpenClipboard mClipboard;
+	
 	//public static boolean CONTENT_FRAGMENT_FREE = true;
 	//public boolean isFragmentValid = true;
+	
+	public static OpenClipboard getClipboard() {
+		return mClipboard;
+	}
 	
 	public String getClassName()
 	{
@@ -54,6 +71,51 @@ public class OpenFragmentActivity
 		super.onDestroy();
 		//Logger.LogDebug("->onDestroy - " + getClassName());
 	}
+	
+	public void showToast(final String message)  {
+		Logger.LogInfo("Made toast: " + message);
+		showToast(message, Toast.LENGTH_SHORT);
+	}
+	public void showToast(final int iStringResource) { showToast(getResources().getString(iStringResource)); }
+	public void showToast(final String message, final int toastLength)  {
+		runOnUiThread(new Runnable() {
+			public void run() {
+				Toast.makeText(getBaseContext(), message, toastLength).show();
+			}
+		});
+	}
+
+
+	public Preferences getPreferences() {
+		if(mPreferences == null)
+			mPreferences = new Preferences(getApplicationContext());
+		return mPreferences;
+	}
+	public String getSetting(OpenPath file, String key, String defValue)
+	{
+		return getPreferences().getSetting("global", key + (file != null ? "_" + file.getPath() : ""), defValue);
+	}
+	public Boolean getSetting(OpenPath file, String key, Boolean defValue)
+	{
+		return getPreferences().getSetting("global", key + (file != null ? "_" + file.getPath() : ""), defValue);
+	}
+	public Integer getSetting(OpenPath file, String key, Integer defValue)
+	{
+		return getPreferences().getSetting("global", key + (file != null ? "_" + file.getPath() : ""), defValue);
+	}
+	public void setSetting(OpenPath file, String key, String value)
+	{
+		getPreferences().setSetting("global", key + (file != null ? "_" + file.getPath() : ""), value);
+	}
+	public void setSetting(OpenPath file, String key, Boolean value)
+	{
+		getPreferences().setSetting("global", key + (file != null ? "_" + file.getPath() : ""), value);
+	}
+	public void setSetting(OpenPath file, String key, Integer value)
+	{
+		getPreferences().setSetting("global", key + (file != null ? "_" + file.getPath() : ""), value);
+	}
+
 	
 	/*
 	@Override

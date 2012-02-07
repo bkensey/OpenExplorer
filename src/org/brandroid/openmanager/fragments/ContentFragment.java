@@ -195,7 +195,7 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 		
 		mActionModeSelected = false;
 		try {
-			mShowThumbnails = getExplorer()
+			mShowThumbnails = ((OpenFragmentActivity)getExplorer())
 								.getSetting(mPath, "thumbs", true);
 		} catch(NullPointerException npe) {
 			mShowThumbnails = true;
@@ -308,10 +308,10 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 			((ViewGroup)getView()).addView(mGrid);
 			setupGridView();
 		}
-		mViewMode = getExplorer().getSetting(mPath, "view", mViewMode);
-		getManager().setSorting(FileManager.parseSortType(getExplorer().getSetting(mPath, "sort", getManager().getSorting().toString())));
-		getManager().setShowHiddenFiles(!getExplorer().getSetting(mPath, "hide", true));
-		mShowThumbnails = getExplorer().getSetting(mPath, "thumbs", true);
+		mViewMode = getExplorerActivity().getSetting(mPath, "view", mViewMode);
+		getManager().setSorting(FileManager.parseSortType(getExplorerActivity().getSetting(mPath, "sort", getManager().getSorting().toString())));
+		getManager().setShowHiddenFiles(!getExplorerActivity().getSetting(mPath, "hide", true));
+		mShowThumbnails = getExplorerActivity().getSetting(mPath, "thumbs", true);
 		//Logger.LogVerbose("Check View Mode: " + mViewMode);
 		if(mViewMode == OpenExplorer.VIEW_GRID) {
 			mLayoutID = R.layout.grid_content_layout;
@@ -590,18 +590,18 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 		switch(id)
 		{
 			case R.id.menu_context_view:
-				IntentManager.startIntent(file, getExplorer());
+				IntentManager.startIntent(file, getExplorerActivity());
 				break;
 			case R.id.menu_context_edit:
-				Intent intent = IntentManager.getIntent(file, getExplorer());
+				Intent intent = IntentManager.getIntent(file, getExplorerActivity());
 				if(intent != null)
 				{
 					try {
 						intent.setAction(Intent.ACTION_EDIT);
 						Logger.LogVerbose("Starting Intent: " + intent.toString());
-						getExplorer().startActivity(intent);
+						getExplorerActivity().startActivity(intent);
 					} catch(ActivityNotFoundException e) {
-						getExplorer().showToast(R.string.s_error_no_intents);
+						getExplorerActivity().showToast(R.string.s_error_no_intents);
 						getExplorer().editFile(file);
 					}
 				} else {
@@ -734,7 +734,7 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 		OpenPath file = mData2.get(info != null ? info.position : mMenuContextItemIndex);
 		new MenuInflater(mContext).inflate(R.menu.context_file, menu);
 		menu.findItem(R.id.menu_context_paste).setEnabled(getClipboard().size() > 0);
-		if(!mLastPath.isFile() || !IntentManager.isIntentAvailable(mLastPath, getExplorer()))
+		if(!mLastPath.isFile() || !IntentManager.isIntentAvailable(mLastPath, getExplorerActivity()))
 		{
 			menu.findItem(R.id.menu_context_edit).setVisible(false);
 			menu.findItem(R.id.menu_context_view).setVisible(false);
@@ -783,7 +783,7 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 				return;
 			}
 			
-			IntentManager.startIntent(file, getExplorer(), true);
+			IntentManager.startIntent(file, getExplorerActivity(), true);
 		}
 	}
 	
@@ -1186,7 +1186,7 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 						for(OpenPath f : list)
 							ret.add(f);
 					} else {
-						getExplorer().showToast(R.string.s_error_ftp);
+						getExplorerActivity().showToast(R.string.s_error_ftp);
 					}
 				} else {
 					try {
@@ -1279,6 +1279,9 @@ public class ContentFragment extends OpenFragment implements OnItemClickListener
 			super.setIcon(icon);
 			return this;
 		}
+	}
+	public OpenPath getPath() {
+		return mLastPath;
 	}
 }
 

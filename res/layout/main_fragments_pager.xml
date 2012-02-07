@@ -30,11 +30,18 @@
 	    android:layout_width="match_parent"
 	    android:layout_height="match_parent">
 	   
+	<android.support.v4.view.ViewPager
+	    android:layout_width="match_parent"
+	    android:layout_height="match_parent"
+	    android:id="@+id/content_frag_pager"
+	    />
+	<!-- 
 	<FrameLayout
 		android:id="@+id/content_frag"
 		android:layout_height="match_parent"
 		android:layout_width="match_parent"
 		/>
+	-->
 		
 	</RelativeLayout>
 </LinearLayout>

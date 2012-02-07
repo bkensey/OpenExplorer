@@ -4,6 +4,7 @@ import org.brandroid.openmanager.activities.OpenExplorer;
 import org.brandroid.openmanager.data.OpenClipboard;
 import org.brandroid.openmanager.util.EventHandler;
 import org.brandroid.openmanager.util.FileManager;
+import org.brandroid.openmanager.util.OpenExplorerOperator;
 import org.brandroid.utils.Logger;
 
 import android.os.Bundle;
@@ -47,7 +48,8 @@ public class OpenFragment
 			setAlpha(root.findViewById(id), alpha);
 	}
 	
-	public OpenExplorer getExplorer() { return (OpenExplorer)getActivity(); }
+	public OpenExplorerOperator getExplorer() { return (OpenExplorerOperator)getActivity(); }
+	public OpenFragmentActivity getExplorerActivity() { return (OpenFragmentActivity)getActivity(); }
 	public static EventHandler getEventHandler() { return OpenExplorer.getEventHandler(); }
 	public static FileManager getFileManager() { return OpenExplorer.getFileManager(); }
 	protected OpenClipboard getClipboard() {

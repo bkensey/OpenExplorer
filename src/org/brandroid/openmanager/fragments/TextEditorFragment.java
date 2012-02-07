@@ -214,7 +214,7 @@ public class TextEditorFragment extends OpenFragment implements OnClickListener
 						sb.append(line + "\n");
 				} catch (RuntimeException r) {
 					Logger.LogError("File too large?", r);
-					getExplorer().showToast("Unable to open file. File too large?");
+					getExplorerActivity().showToast("Unable to open file. File too large?");
 					cancelTask();
 					getFragmentManager().popBackStack();
 				} catch (Exception e) {

@@ -44,18 +44,16 @@ import android.provider.MediaStore;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentManager.BackStackEntry;
-import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.app.FragmentManager.OnBackStackChangedListener;
 import android.support.v4.content.CursorLoader;
-import android.support.v4.view.ViewPager;
+import android.util.AttributeSet;
 import android.view.ActionMode;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.view.SubMenu;
 import android.view.View;
 import android.view.ViewStub;
 import android.view.Window;
@@ -82,7 +80,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.zip.GZIPOutputStream;
@@ -112,6 +109,7 @@ import org.brandroid.openmanager.util.EventHandler;
 import org.brandroid.openmanager.util.FileManager.SortType;
 import org.brandroid.openmanager.util.MimeTypes;
 import org.brandroid.openmanager.util.OpenChromeClient;
+import org.brandroid.openmanager.util.OpenExplorerOperator;
 import org.brandroid.openmanager.util.OpenInterfaces.OnBookMarkChangeListener;
 import org.brandroid.openmanager.util.MimeTypeParser;
 import org.brandroid.openmanager.util.OpenInterfaces;
@@ -128,11 +126,11 @@ import org.xmlpull.v1.XmlPullParserException;
 
 public class OpenExplorer
 		extends OpenFragmentActivity
-		implements OnBackStackChangedListener, OnClipboardUpdateListener
+		implements OnBackStackChangedListener, OpenExplorerOperator
 	{	
 
 	private static final int PREF_CODE =		0x6;
-	private static final int REQ_SPLASH = 7;
+	protected static final int REQ_SPLASH = 7;
 	public static final int VIEW_LIST = 0;
 	public static final int VIEW_GRID = 1;
 	public static final int VIEW_CAROUSEL = Build.VERSION.SDK_INT > 11 ? 2 : 1;
@@ -147,40 +145,32 @@ public class OpenExplorer
 	
 	private static MimeTypes mMimeTypes;
 	
-	private Preferences mPreferences = null;
 	private SearchView mSearchView;
 	private ActionMode mActionMode;
-	private static OpenClipboard mClipboard;
 	private int mLastBackIndex = -1;
-	private OpenPath mLastPath = null;
+	protected OpenPath mLastPath = null;
 	private BroadcastReceiver storageReceiver = null;
 	private Handler mHandler = new Handler();  // handler for the main thread
 	private int mViewMode = VIEW_LIST;
 	private static long mLastCursorEnsure = 0;
 	private static boolean mRunningCursorEnsure = false;
 	private static int mLoadingCount = 0;
-	private Boolean mSinglePane = false;
-	private Boolean mSinglePanePager = true;
 	
-	private static Fragment mFavoritesFragment = null,
-			mContentFragment = null;
-	private ViewPager mViewPager;
-	private static MyFragAdapter mViewPagerAdapter;
+	protected static Fragment mFavoritesFragment = null, mContentFragment = null;
 	private ExpandableListView mBookmarksList;
 	private OpenBookmarks mBookmarks;
 	private BetterPopupWindow mBookmarksPopup;
 	private static OnBookMarkChangeListener mBookmarkListener;
 	
-	private static final FileManager mFileManager = new FileManager();
-	private static final EventHandler mEvHandler = new EventHandler(mFileManager);
+	protected FragmentManager fragmentManager;
 	
-	private FragmentManager fragmentManager;
-	
-	private final static OpenCursor
+	protected final static OpenCursor
 			mPhotoParent = new OpenCursor("Photos"),
 			mVideoParent = new OpenCursor("Videos"),
 			mMusicParent = new OpenCursor("Music"),
 			mApkParent = new OpenCursor("Apps");
+	
+	protected Boolean mSinglePane = false;
 	
 	public int getViewMode() { return mViewMode; }
 	public void setViewMode(int mode) { mViewMode = mode; }
@@ -206,13 +196,13 @@ public class OpenExplorer
 		//requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
 		
 		//mMultiSelectHandler = MultiSelectHandler.getInstance(this);
-		mClipboard = new OpenClipboard(this);
-		mClipboard.setClipboardUpdateListener(this);
 		
 		getMimeTypes();
 		setupLoggingDb();
 		
 		super.onCreate(savedInstanceState);
+		
+		setupClipboardListener();
 		
 		if(!BEFORE_HONEYCOMB && getActionBar() == null)
 			USE_ACTION_BAR = false;
@@ -236,7 +226,10 @@ public class OpenExplorer
 					IS_DEBUG_BUILD = true;
 		} catch (NameNotFoundException e1) { }
 		
-		setContentView(R.layout.main_fragments);
+		if(this instanceof OpenExplorerPager)
+			setContentView(R.layout.main_fragments_pager);
+		else
+			setContentView(R.layout.main_fragments);
 
 		ThumbnailCreator.setContext(this);
 		
@@ -349,17 +342,33 @@ public class OpenExplorer
 		
 		//updateTitle(path.getPath());
 		mLastPath = path;
+
+		updateTitle(mLastPath.getPath());
+				
+		//mPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+		handleMediaReceiver();
 		
+
+		if(!getPreferences().getBoolean("global", "pref_splash", false))
+		{
+			Intent intent = new Intent(this, SplashActivity.class);
+			intent.putExtra("start", mLastPath.getPath());
+			startActivityForResult(intent, REQ_SPLASH);
+		}
+		
+		/* read and display the users preferences */
+		//mSettingsListener.onSortingChanged(mPreferences.getString(SettingsActivity.PREF_SORT_KEY, "type"));
+
 		boolean bAddToStack = true; //fragmentManager.getBackStackEntryCount() > 0;
 
-		mViewMode = getSetting(path, "view", mViewMode);
+		mViewMode = getSetting(mLastPath, "view", mViewMode);
 		
 		FragmentTransaction ft = fragmentManager.beginTransaction();
 		mContentFragment = new ContentFragment(mLastPath, mViewMode);
 		
-		Logger.LogDebug("Creating with " + path.getPath());
-		if(OpenFile.class.equals(path.getClass()))
-			new PeekAtGrandKidsTask().execute((OpenFile)path);
+		Logger.LogDebug("Creating with " + mLastPath.getPath());
+		if(OpenFile.class.equals(mLastPath.getClass()))
+			new PeekAtGrandKidsTask().execute((OpenFile)mLastPath);
 
 		if(!mSinglePane && mFavoritesFragment != null)
 		{
@@ -369,11 +378,11 @@ public class OpenExplorer
 			//ft.replace(R.id.list_frag, mFavoritesFragment);
 		}
 		
-		if(savedInstanceState != null)
-			if(savedInstanceState.containsKey("edit_path"))
+		if(getIntent().getExtras() != null)
+			if(getIntent().getExtras().containsKey("edit_path"))
 			{
 				//Logger.LogDebug("textEditor restore @ " + savedInstanceState.getString("edit_path"));
-				mContentFragment = new TextEditorFragment(new OpenFile(savedInstanceState.getString("edit_path")));
+				mContentFragment = new TextEditorFragment(new OpenFile(getIntent().getExtras().getString("edit_path")));
 				bAddToStack = false;
 			}
 		
@@ -388,13 +397,6 @@ public class OpenExplorer
 			bAddToStack = false;
 		}
 		
-		mViewPager = (ViewPager)findViewById(R.id.content_frag_pager);
-		if(mViewPager != null)
-		{
-			mViewPagerAdapter = new MyFragAdapter(fragmentManager);
-			mViewPager.setAdapter(mViewPagerAdapter);
-		}
-		
 		if(findViewById(R.id.content_frag) != null)
 		{
 			if(bAddToStack)
@@ -404,34 +406,55 @@ public class OpenExplorer
 					ft
 						.addToBackStack("path")
 						.replace(R.id.content_frag, mContentFragment)
-						.setBreadCrumbTitle(path.getPath());
+						.setBreadCrumbTitle(mLastPath.getPath());
 				else Logger.LogWarning("Damn it dog, stay!");
 			} else {
 				ft.replace(R.id.content_frag, mContentFragment);
 				ft.disallowAddToBackStack();
 			}
 		}
-	
 		//ft.addToBackStack("path");
 		//ft.setBreadCrumbTitle(path.getAbsolutePath());
 		ft.commit();
-		
-		updateTitle(mLastPath.getPath());
-				
-		//mPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-		handleMediaReceiver();
-		
-
-		if(!getPreferences().getBoolean("global", "pref_splash", false))
-		{
-			intent = new Intent(this, SplashActivity.class);
-			intent.putExtra("start", mLastPath.getPath());
-			startActivityForResult(intent, REQ_SPLASH);
-		}
-		
-		/* read and display the users preferences */
-		//mSettingsListener.onSortingChanged(mPreferences.getString(SettingsActivity.PREF_SORT_KEY, "type"));
-
+	}
+	
+	protected void setupClipboardListener()
+	{
+		mClipboard = new OpenClipboard(this);
+		mClipboard.setClipboardUpdateListener(new OnClipboardUpdateListener() {
+			public void onClipboardUpdate() {
+				View pb = findViewById(R.id.title_paste);
+				if(pb != null)
+				{
+					pb.setVisibility(View.VISIBLE);
+					if(pb.findViewById(R.id.title_paste_text) != null)
+						((TextView)pb.findViewById(R.id.title_paste_text))
+							.setText(""+getClipboard().size());
+					if(pb.findViewById(R.id.title_paste_icon) != null)
+					{
+						((ImageView)pb.findViewById(R.id.title_paste_icon))
+							.setImageResource(getClipboard().isMultiselect() ?
+									R.drawable.ic_menu_paste_multi : R.drawable.ic_menu_paste
+									);
+						if(getClipboard().isMultiselect())
+							((LayerDrawable)((ImageView)pb.findViewById(R.id.title_paste_icon)).getDrawable())
+								.getDrawable(1).setAlpha(127);
+					}
+				} else if(!BEFORE_HONEYCOMB)
+					invalidateOptionsMenu();
+				getDirContentFragment(false).notifyDataSetChanged();
+			}
+			
+			public void onClipboardClear()
+			{
+				View pb = findViewById(R.id.title_paste);
+				if(pb != null)
+					pb.setVisibility(View.GONE);
+				else if(!BEFORE_HONEYCOMB)
+					invalidateOptionsMenu();
+				getDirContentFragment(false).notifyDataSetChanged();
+			}
+		});
 	}
 	
 	@Override
@@ -448,14 +471,14 @@ public class OpenExplorer
 	
 	@Override
 	protected void onStart() {
-		super.onStart();
 		setupLoggingDb();
 		submitStats();
 		if(mFavoritesFragment != null)
 			((BookmarkFragment)mFavoritesFragment).scanBookmarks();
+		super.onStart();
 	}
 	
-	private void setupLoggingDb()
+	protected void setupLoggingDb()
 	{
 		if(Logger.isLoggingEnabled())
 		{
@@ -514,12 +537,6 @@ public class OpenExplorer
 			Logger.LogDebug("Found " + logs.length() + " bytes of logs.");
 			new SubmitStatsTask().execute(logs);
 		//} else Logger.LogWarning("Logs not found.");
-	}
-	
-	public Preferences getPreferences() {
-		if(mPreferences == null)
-			mPreferences = new Preferences(getApplicationContext());
-		return mPreferences;
 	}
 	
 	public void handleRefreshMedia(final String path, boolean keepChecking, final int retries)
@@ -609,9 +626,6 @@ public class OpenExplorer
 			unregisterReceiver(storageReceiver);
 	}
 	
-	public static OpenClipboard getClipboard() {
-		return mClipboard;
-	}
 	public void updateClipboard()
 	{
 		if(BEFORE_HONEYCOMB || !USE_ACTION_BAR)
@@ -620,22 +634,22 @@ public class OpenExplorer
 			if(paste_view != null)
 			{
 				TextView paste_text = (TextView)findViewById(R.id.title_paste_text);
-				if(mClipboard.size() > 0)
+				if(getClipboard().size() > 0)
 				{
 					paste_view.setVisibility(View.VISIBLE);
-					paste_text.setText("("+mClipboard.size()+")");
+					paste_text.setText("("+getClipboard().size()+")");
 				} else paste_view.setVisibility(View.GONE);
 			}
 		}
 	}
 	public void addHoldingFile(OpenPath path) { 
-		mClipboard.add(path);
+		getClipboard().add(path);
 		if(!BEFORE_HONEYCOMB)
 			invalidateOptionsMenu();
 		updateClipboard();
 	}
 	public void clearHoldingFiles() {
-		mClipboard.clear();
+		getClipboard().clear();
 		if(!BEFORE_HONEYCOMB)
 			invalidateOptionsMenu();
 		updateClipboard();
@@ -827,7 +841,7 @@ public class OpenExplorer
 		}
 		return true;
 	}
-	private void refreshCursors()
+	protected void refreshCursors()
 	{
 		if(findCursors())
 			return;
@@ -935,19 +949,15 @@ public class OpenExplorer
 			{
 				if(mFavoritesFragment == null)
 					mFavoritesFragment = new BookmarkFragment();
-				
-				if(findViewById(R.id.content_frag) != null)
-				{
-					FragmentTransaction ft = fragmentManager.beginTransaction();
-					if(mFavoritesFragment.isVisible())
-						ft.replace(R.id.content_frag, new ContentFragment(mLastPath, mViewMode));
-					else
-						ft.replace(R.id.content_frag, mFavoritesFragment);
-		
-					ft.addToBackStack("favs");
-					ft.commit();
-				} else if(mViewPager != null)
-					mViewPager.setCurrentItem(0, true);
+					
+				FragmentTransaction ft = fragmentManager.beginTransaction();
+				if(mFavoritesFragment.isVisible())
+					ft.replace(R.id.content_frag, new ContentFragment(mLastPath, mViewMode));
+				else
+					ft.replace(R.id.content_frag, mFavoritesFragment);
+	
+				ft.addToBackStack("favs");
+				ft.commit();
 			}
 		}
 	}
@@ -973,22 +983,7 @@ public class OpenExplorer
 	}
 	public ContentFragment getDirContentFragment(Boolean activate)
 	{
-		Logger.LogDebug("getDirContentFragment");
-		Fragment ret = fragmentManager.findFragmentById(R.id.content_frag);
-		if(ret == null || !ret.getClass().equals(ContentFragment.class))
-		{
-			Logger.LogWarning("Do I need to create a new ContentFragment?");
-   			ret = new ContentFragment(mLastPath, getSetting(mLastPath, "view", mViewMode));
-		}
-		if(activate && !ret.isVisible())
-		{
-			Logger.LogDebug("Activating content fragment");
-			fragmentManager.beginTransaction()
-				.replace(R.id.content_frag, ret)
-				.commit();
-		}
-		
-   		return (ContentFragment)ret;
+   		return (ContentFragment)mFavoritesFragment;
 	}
 	
 	public void updateTitle(String s)
@@ -1050,10 +1045,6 @@ public class OpenExplorer
 			MenuItem view = menu.findItem(R.id.menu_view);
 			try {
 				getMenuInflater().inflate(R.menu.menu_view, view.getSubMenu());
-			} catch(NullPointerException npe) { }
-			MenuItem paste = menu.findItem(R.id.menu_paste);
-			try {
-				getMenuInflater().inflate(R.menu.multiselect, paste.getSubMenu());
 			} catch(NullPointerException npe) { }
 		}
 		return true;
@@ -1165,36 +1156,8 @@ public class OpenExplorer
 		if(BEFORE_HONEYCOMB)
 			setMenuVisible(menu, false, R.id.menu_view_carousel);
 		else if(getWindowManager().getDefaultDisplay().getWidth() < 500) {
-			if(Build.VERSION.SDK_INT < 14) // ICS can split the actionbar
-			{
-				setMenuShowAsAction(menu, MenuItem.SHOW_AS_ACTION_NEVER, R.id.menu_sort, R.id.menu_view, R.id.menu_new_folder);
-				setMenuVisible(menu, true, R.id.title_menu);
-			}
-		}
-		
-		switch(getFileManager().getSorting())
-		{
-		case ALPHA:
-			setMenuChecked(menu, true, R.id.menu_sort_name_asc);
-			break;
-		case ALPHA_DESC:
-			setMenuChecked(menu, true, R.id.menu_sort_name_desc);
-			break;
-		case DATE:
-			setMenuChecked(menu, true, R.id.menu_sort_date_asc);
-			break;
-		case DATE_DESC:
-			setMenuChecked(menu, true, R.id.menu_sort_date_desc);
-			break;
-		case SIZE:
-			setMenuChecked(menu, true, R.id.menu_sort_size_asc);
-			break;
-		case SIZE_DESC:
-			setMenuChecked(menu, true, R.id.menu_sort_size_desc);
-			break;
-		case TYPE:
-			setMenuChecked(menu, true, R.id.menu_sort_type);
-			break;
+			setMenuShowAsAction(menu, MenuItem.SHOW_AS_ACTION_NEVER, R.id.menu_sort, R.id.menu_view, R.id.menu_new_folder);
+			setMenuVisible(menu, true, R.id.title_menu);
 		}
 		
 		setMenuChecked(menu, getClipboard().isMultiselect(), R.id.menu_multi);
@@ -1209,7 +1172,7 @@ public class OpenExplorer
 		if(!mSinglePane)
 			setMenuVisible(menu, false, R.id.menu_favorites);
 		
-		if(mClipboard == null || mClipboard.size() == 0)
+		if(getClipboard() == null || getClipboard().size() == 0)
 		{
 			setMenuVisible(menu, false, R.id.menu_paste);
 		} else {
@@ -1221,18 +1184,6 @@ public class OpenExplorer
 				d.getDrawable(1).setAlpha(127);
 				menu.findItem(R.id.menu_paste).setIcon(d);
 			}
-			/*
-			if(!BEFORE_HONEYCOMB)
-			{
-				SubMenu pasties = mPaste.getSubMenu();
-				pasties.clear();
-				getMenuInflater().inflate(R.menu.multiselect, pasties);
-				if(getClipboard().isMultiselect())
-					pasties.findItem(R.id.menu_multi).setChecked(true);
-				for(OpenPath p : getClipboard().getAll())
-					pasties.add(p.getName());
-			}
-			*/
 			//if()
 			//mPaste.setIcon();
 			//mPaste.setIcon(R.drawable.bluetooth);
@@ -1309,8 +1260,8 @@ public class OpenExplorer
 						}
 						public boolean onCreateActionMode(ActionMode mode, Menu menu) {
 							mode.setTitle(getString(R.string.s_menu_multi) + ": " + getClipboard().size() + " " + getString(R.string.s_files));
-							mode.getMenuInflater().inflate(R.menu.multiselect, menu);
-							//setMenuVisible(menu, false, R.id.menu_context_paste, R.id.menu_context_unzip);
+							mode.getMenuInflater().inflate(R.menu.context_file, menu);
+							setMenuVisible(menu, false, R.id.menu_context_paste, R.id.menu_context_unzip);
 							getDirContentFragment(true).changeMultiSelectState(true);
 							return true;
 						}
@@ -1326,7 +1277,7 @@ public class OpenExplorer
 							getClipboard().clear();
 						
 							return getDirContentFragment(false)
-									.executeMenu(item.getItemId(), mode, file, mClipboard);
+									.executeMenu(item.getItemId(), mode, file, getClipboard());
 						}
 					});
 				}
@@ -1433,23 +1384,23 @@ public class OpenExplorer
 				return true;
 
 			case R.id.menu_multi_all_copy:
-				mClipboard.DeleteSource = false;
-				getDirContentFragment(false).executeMenu(R.id.menu_paste, null, mLastPath, mClipboard);
+				getClipboard().DeleteSource = false;
+				getDirContentFragment(false).executeMenu(R.id.menu_paste, null, mLastPath, getClipboard());
 				break;
 				
 			case R.id.menu_multi_all_move:
-				mClipboard.DeleteSource = true;
-				getDirContentFragment(false).executeMenu(R.id.menu_paste, null, mLastPath, mClipboard);
+				getClipboard().DeleteSource = true;
+				getDirContentFragment(false).executeMenu(R.id.menu_paste, null, mLastPath, getClipboard());
 				break;
 				
 			case R.id.title_paste:
 			case R.id.title_paste_icon:
 			case R.id.title_paste_text:
 			case R.id.menu_paste:
-				showClipboardDropdown(id);
+				showClipboardDropdown(R.id.title_paste);
 				return true;
 				
-				//getDirContentFragment(false).executeMenu(R.id.menu_paste, null, mLastPath, mClipboard);
+				//getDirContentFragment(false).executeMenu(R.id.menu_paste, null, mLastPath, getClipboard());
 				//return true;
 				
 			case R.id.menu_about:
@@ -1468,24 +1419,20 @@ public class OpenExplorer
 	private void showClipboardDropdown(int menuId)
 	{
 		View anchor = findViewById(menuId);
-		if(anchor == null)
-			anchor = findViewById(R.id.title_icon);
-		if(anchor == null)
-			anchor = findViewById(R.id.frag_holder);
 		
 		final BetterPopupWindow clipdrop = new BetterPopupWindow(this, anchor);
 		View root = ((LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE))
 				.inflate(R.layout.multiselect, null);
 		GridView cmds = (GridView)root.findViewById(R.id.multiselect_command_grid);
 		ListView items = (ListView)root.findViewById(R.id.multiselect_item_list);
-		items.setAdapter(mClipboard);
+		items.setAdapter(getClipboard());
 		items.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> list, View view, int pos, long id) {
-				OpenPath file = mClipboard.get(pos);
-				//if(file.getParent().equals(mLastPath))
-					mClipboard.remove(pos);
-				//else
-					//getEventHandler().copyFile(file, mLastPath, OpenExplorer.this);
+				OpenPath file = getClipboard().get(pos);
+				if(file.getParent().equals(mLastPath))
+					getClipboard().remove(pos);
+				else
+					getEventHandler().copyFile(file, mLastPath, OpenExplorer.this);
 			}
 		});
 		final Menu menu = IconContextMenu.newMenu(this, R.menu.multiselect);
@@ -1523,10 +1470,7 @@ public class OpenExplorer
 	}
 	private void setSorting(SortType sort) {
 		setSetting(mLastPath, "sort", sort.toString());
-		getFileManager().setSorting(sort);
 		getDirContentFragment(true).onSortingChanged(sort);
-		if(!BEFORE_HONEYCOMB)
-			invalidateOptionsMenu();
 	}
 	
 	public void showMenu() {
@@ -1670,7 +1614,7 @@ public class OpenExplorer
 		}
 	}
 	
-	private MimeTypes getMimeTypes()
+	protected MimeTypes getMimeTypes()
 	{
 		return getMimeTypes(this);
 	}
@@ -1699,31 +1643,6 @@ public class OpenExplorer
 		return mMimeTypes;
 	}
 	
-	public String getSetting(OpenPath file, String key, String defValue)
-	{
-		return getPreferences().getSetting("global", key + (file != null ? "_" + file.getPath() : ""), defValue);
-	}
-	public Boolean getSetting(OpenPath file, String key, Boolean defValue)
-	{
-		return getPreferences().getSetting("global", key + (file != null ? "_" + file.getPath() : ""), defValue);
-	}
-	public Integer getSetting(OpenPath file, String key, Integer defValue)
-	{
-		return getPreferences().getSetting("global", key + (file != null ? "_" + file.getPath() : ""), defValue);
-	}
-	public void setSetting(OpenPath file, String key, String value)
-	{
-		getPreferences().setSetting("global", key + (file != null ? "_" + file.getPath() : ""), value);
-	}
-	public void setSetting(OpenPath file, String key, Boolean value)
-	{
-		getPreferences().setSetting("global", key + (file != null ? "_" + file.getPath() : ""), value);
-	}
-	public void setSetting(OpenPath file, String key, Integer value)
-	{
-		getPreferences().setSetting("global", key + (file != null ? "_" + file.getPath() : ""), value);
-	}
-
 	public void showPreferences(OpenPath path)
 	{
 		if(Build.VERSION.SDK_INT > 100)
@@ -1873,18 +1792,6 @@ public class OpenExplorer
 	}
 	
 	public boolean isGTV() { return getPackageManager().hasSystemFeature("com.google.android.tv"); }
-	public void showToast(final String message)  {
-		Logger.LogInfo("Made toast: " + message);
-		showToast(message, Toast.LENGTH_SHORT);
-	}
-	public void showToast(final int iStringResource) { showToast(getResources().getString(iStringResource)); }
-	public void showToast(final String message, final int toastLength)  {
-		runOnUiThread(new Runnable() {
-			public void run() {
-				Toast.makeText(getBaseContext(), message, toastLength).show();
-			}
-		});
-	}
 
 	
 	public void killBadFragments()
@@ -1898,49 +1805,40 @@ public class OpenExplorer
 		if(path == null) path = mLastPath;
 		if(!addToStack && path.getPath().equals("/")) return;
 		//if(mLastPath.equalsIgnoreCase(path.getPath())) return;
-		Fragment content = new ContentFragment(path);
+		Fragment content = fragmentManager.findFragmentById(R.id.content_frag);
+		if(content == null)
+			content = mContentFragment;
 		int newView = getSetting(path, "view", mViewMode);
 		mFileManager.setShowHiddenFiles(getSetting(path, "hide", true));
 		setViewMode(newView);
-		if(mViewPager != null)
-			mViewPagerAdapter.add(content);
-		else {
-			FragmentTransaction ft = fragmentManager.beginTransaction();
-			ft.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE);
-			ft.setBreadCrumbTitle(path.getPath());
-			if(addToStack)
+		FragmentTransaction ft = fragmentManager.beginTransaction();
+		if(addToStack)
+		{
+			int bsCount = fragmentManager.getBackStackEntryCount();
+			if(bsCount > 0)
 			{
-				int bsCount = fragmentManager.getBackStackEntryCount();
-				if(bsCount > 0)
-				{
-					BackStackEntry entry = fragmentManager.getBackStackEntryAt(bsCount - 1);
-					String last = entry.getBreadCrumbTitle() != null ? entry.getBreadCrumbTitle().toString() : "";
-					Logger.LogVerbose("Changing " + last + " to " + path.getPath() + "? " + (last.equalsIgnoreCase(path.getPath()) ? "No" : "Yes"));
-					if(last.equalsIgnoreCase(path.getPath()))
-						return;
-				}
-				mFileManager.pushStack(path);
-				ft.addToBackStack("path");
-			} else Logger.LogVerbose("Covertly changing to " + path.getPath());
-			if(newView == VIEW_CAROUSEL && !BEFORE_HONEYCOMB)
-			{
-				content = new CarouselFragment(path);
-				ft.replace(R.id.content_frag, content);
-			} else {
-				if(newView == VIEW_CAROUSEL && BEFORE_HONEYCOMB)
-					setViewMode(newView = VIEW_LIST);
-				if(!BEFORE_HONEYCOMB && (content == null || content instanceof CarouselFragment))
-				{
-					content = new ContentFragment(path, mViewMode);
-					ft.replace(R.id.content_frag, content);
-				} else if(content instanceof ContentFragment) {
-					((ContentFragment)content).changePath(path); // the main selection
-				}
+				BackStackEntry entry = fragmentManager.getBackStackEntryAt(bsCount - 1);
+				String last = entry.getBreadCrumbTitle() != null ? entry.getBreadCrumbTitle().toString() : "";
+				Logger.LogVerbose("Changing " + last + " to " + path.getPath() + "? " + (last.equalsIgnoreCase(path.getPath()) ? "No" : "Yes"));
+				if(last.equalsIgnoreCase(path.getPath()))
+					return;
 			}
-			try {
-				ft.commit();
-			} catch(IllegalStateException e) {
-				Logger.LogWarning("Trying to commit after onSave", e);
+			mFileManager.pushStack(path);
+			ft.addToBackStack("path");
+		} else Logger.LogVerbose("Covertly changing to " + path.getPath());
+		if(newView == VIEW_CAROUSEL && !BEFORE_HONEYCOMB)
+		{
+			content = new CarouselFragment(path);
+			ft.replace(R.id.content_frag, content);
+		} else {
+			if(newView == VIEW_CAROUSEL && BEFORE_HONEYCOMB)
+				setViewMode(newView = VIEW_LIST);
+			if(!BEFORE_HONEYCOMB && (content == null || content instanceof CarouselFragment))
+			{
+				content = new ContentFragment(path, mViewMode);
+				ft.replace(R.id.content_frag, content);
+			} else if(content instanceof ContentFragment) {
+				((ContentFragment)content).changePath(path); // the main selection
 			}
 		}
 		if(content instanceof ContentFragment)
@@ -1952,9 +1850,14 @@ public class OpenExplorer
 		if(OpenFile.class.equals(path.getClass()))
 			new PeekAtGrandKidsTask().execute((OpenFile)path);
 		//ft.replace(R.id.content_frag, content);
-		//ft.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE);
+		ft.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE);
 		Logger.LogDebug("Setting path to " + path.getPath());
-		
+		ft.setBreadCrumbTitle(path.getPath());
+		try {
+			ft.commit();
+		} catch(IllegalStateException e) {
+			Logger.LogWarning("Trying to commit after onSave", e);
+		}
 		updateTitle(path.getPath());
 		changeViewMode(getSetting(path, "view", mViewMode), false); // bug fix
 		mLastPath = path;
@@ -2030,53 +1933,6 @@ public class OpenExplorer
 				Logger.LogError("Error sending logs.", e);
 			}
 			return null;
-		}
-		
-	}
-	
-
-	public static class MyFragAdapter extends FragmentPagerAdapter
-	{
-		private List<Fragment> mExtraFrags = new ArrayList<Fragment>();
-
-		public MyFragAdapter(FragmentManager fm) {
-			super(fm);
-		}
-
-		@Override
-		public Fragment getItem(int pos) {
-			if(pos == 0)
-				return mFavoritesFragment;
-			else if(pos == 1)
-				return mContentFragment;
-			else if(pos < mExtraFrags.size() - 2)
-				return mExtraFrags.get(pos - 2);
-			else return null;
-		}
-
-		@Override
-		public int getCount() {
-			return 2 + mExtraFrags.size();
-		}
-		
-		public boolean add(Fragment frag)
-		{
-			boolean ret = mExtraFrags.add(frag);
-			notifyDataSetChanged();
-			return ret;
-		}
-		
-		public boolean remove(Fragment frag)
-		{
-			boolean ret = mExtraFrags.remove(frag);
-			notifyDataSetChanged();
-			return ret;
-		}
-		
-		public void clear()
-		{
-			mExtraFrags.clear();
-			notifyDataSetChanged();
 		}
 		
 	}
@@ -2218,43 +2074,6 @@ public class OpenExplorer
 
 	public OpenPath getLastPath() {
 		return mLastPath;
-	}
-	
-	public void onClipboardUpdate() {
-		View pb = findViewById(R.id.title_paste);
-		if(pb != null)
-		{
-			pb.setVisibility(View.VISIBLE);
-			if(pb.findViewById(R.id.title_paste_text) != null)
-				((TextView)pb.findViewById(R.id.title_paste_text))
-					.setText(""+getClipboard().size());
-			if(pb.findViewById(R.id.title_paste_icon) != null)
-			{
-				((ImageView)pb.findViewById(R.id.title_paste_icon))
-					.setImageResource(getClipboard().isMultiselect() ?
-							R.drawable.ic_menu_paste_multi : R.drawable.ic_menu_paste
-							);
-				if(getClipboard().isMultiselect())
-					((LayerDrawable)((ImageView)pb.findViewById(R.id.title_paste_icon)).getDrawable())
-						.getDrawable(1).setAlpha(127);
-			}
-		} else if(!BEFORE_HONEYCOMB)
-			invalidateOptionsMenu();
-		if(!BEFORE_HONEYCOMB && USE_ACTION_BAR && mActionMode != null)
-		{
-			((ActionMode)mActionMode).setTitle(getString(R.string.s_menu_multi) + ": " + getClipboard().size() + " " + getString(R.string.s_files));
-		}
-		getDirContentFragment(false).notifyDataSetChanged();
-	}
-	
-	public void onClipboardClear()
-	{
-		View pb = findViewById(R.id.title_paste);
-		if(pb != null)
-			pb.setVisibility(View.GONE);
-		else if(!BEFORE_HONEYCOMB)
-			invalidateOptionsMenu();
-		getDirContentFragment(false).notifyDataSetChanged();
 	}
 }
 
