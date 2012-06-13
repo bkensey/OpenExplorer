@@ -16,11 +16,15 @@
 
 package org.brandroid.utils;
 
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuItem;
+import com.actionbarsherlock.view.SubMenu;
+
 import android.content.Context;
 import android.graphics.drawable.Drawable;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.SubMenu;
+//import android.view.Menu;
+//import android.view.MenuItem;
+//import android.view.SubMenu;
 import android.view.View;
 import android.view.Window.Callback;
 
@@ -61,7 +65,7 @@ public class SubMenuBuilderNew extends MenuBuilderNew implements SubMenu {
     }
 
     public Menu getParentMenu() {
-        return mParentMenu;
+        return (Menu) mParentMenu;
     }
 
     public MenuItem getItem() {

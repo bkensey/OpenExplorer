@@ -59,13 +59,13 @@ public class IconContextMenuAdapter extends BaseAdapter {
 	//@Override
 	public MenuItem getItem(int position) {
 		if(position < myMenu.size() && position >= 0)
-			return myMenu.getItem(position);
+			return (MenuItem) myMenu.getItem(position);
 		else
 			return null;
 	}
 
 	public MenuItem findItem(int id) {
-		return myMenu.findItem(id);
+		return (MenuItem) myMenu.findItem(id);
 	}
 	
 	//@Override

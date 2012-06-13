@@ -1,5 +1,7 @@
 package org.brandroid.openmanager.util;
 
+import com.actionbarsherlock.view.Menu;
+
 import org.brandroid.openmanager.R;
 
 import android.app.AlertDialog;
@@ -9,7 +11,7 @@ import android.content.DialogInterface.OnCancelListener;
 import android.content.DialogInterface.OnClickListener;
 import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
-import android.view.Menu;
+//import android.view.Menu;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;

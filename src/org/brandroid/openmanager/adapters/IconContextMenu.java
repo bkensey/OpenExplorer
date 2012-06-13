@@ -1,5 +1,9 @@
 package org.brandroid.openmanager.adapters;
 
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
@@ -20,9 +24,9 @@ import android.util.SparseArray;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
+//import android.view.Menu;
+//import android.view.MenuInflater;
+//import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -209,7 +213,7 @@ public class IconContextMenu implements OnKeyListener
 					row = new TableRow(context);
 					row.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
 				}
-				View kid = IconContextMenuAdapter.createView(row, item, textLayoutId);
+				View kid = IconContextMenuAdapter.createView(row, (android.view.MenuItem) item, textLayoutId);
 				kid.setId(id);
 				kid.setBackgroundResource(R.drawable.list_selector_background);
 				kid.setFocusable(true);

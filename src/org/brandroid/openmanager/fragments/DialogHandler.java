@@ -18,6 +18,8 @@
 
 package org.brandroid.openmanager.fragments;
 
+import com.actionbarsherlock.view.MenuItem;
+
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.NetworkInfo;
@@ -44,7 +46,7 @@ import android.view.Display;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
+//import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;

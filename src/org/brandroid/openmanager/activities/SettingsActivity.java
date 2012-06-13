@@ -18,6 +18,9 @@
 
 package org.brandroid.openmanager.activities;
 
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.app.SherlockPreferenceActivity;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -69,7 +72,7 @@ import android.text.method.PasswordTransformationMethod;
 import android.text.method.ReplacementTransformationMethod;
 import android.text.method.TransformationMethod;
 import android.util.Log;
-import android.view.Menu;
+//import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.TranslateAnimation;
@@ -78,7 +81,7 @@ import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.Toast;
 
-public class SettingsActivity extends PreferenceActivity
+public class SettingsActivity extends SherlockPreferenceActivity
 	implements OnPreferenceChangeListener
 {
 	//keys used for preference file

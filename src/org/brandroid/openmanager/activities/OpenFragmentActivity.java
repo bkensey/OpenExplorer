@@ -1,5 +1,10 @@
 package org.brandroid.openmanager.activities;
 
+import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
+import com.actionbarsherlock.app.SherlockFragmentActivity;
+import com.actionbarsherlock.app.SherlockFragment;
+
 import java.io.IOException;
 import java.util.Locale;
 
@@ -23,17 +28,17 @@ import android.content.res.XmlResourceParser;
 import android.graphics.Point;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentActivity;
+//import android.support.v4.app.Fragment;
+//import android.support.v4.app.FragmentActivity;
 import android.view.LayoutInflater;
-import android.view.MenuInflater;
-import android.view.MenuItem;
+//import android.view.MenuInflater;
+//import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
 public abstract class OpenFragmentActivity
-			extends FragmentActivity
+			extends SherlockFragmentActivity
 			implements View.OnClickListener, View.OnLongClickListener
 				, OpenContextProvider
 {

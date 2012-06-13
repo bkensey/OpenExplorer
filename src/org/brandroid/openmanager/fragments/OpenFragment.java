@@ -1,5 +1,10 @@
 package org.brandroid.openmanager.fragments;
 
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
+import com.actionbarsherlock.app.SherlockFragment;
+
 import java.lang.reflect.Method;
 import java.util.Comparator;
 import org.brandroid.openmanager.R;
@@ -39,9 +44,9 @@ import android.support.v4.app.Fragment;
 import android.support.v4.util.LruCache;
 import android.view.ContextMenu;
 import android.view.KeyEvent;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
+//import android.view.Menu;
+//import android.view.MenuInflater;
+//import android.view.MenuItem;
 import android.view.View;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnCreateContextMenuListener;
@@ -54,7 +59,7 @@ import android.widget.PopupMenu.OnMenuItemClickListener;
  * other sections of the application.
  */
 public abstract class OpenFragment
-			extends Fragment
+			extends SherlockFragment
 			implements View.OnClickListener, View.OnLongClickListener
 				, Comparator<OpenFragment>
 				, Comparable<OpenFragment>
@@ -195,7 +200,7 @@ public abstract class OpenFragment
 			@Override
 			public void onCreateContextMenu(ContextMenu cmenu, View v,
 					ContextMenuInfo menuInfo) {
-				MenuUtils.transferMenu(menu, cmenu, false);
+				MenuUtils.transferMenu(menu, (Menu) cmenu, false);
 			}
 		});
 		return anchor.showContextMenu();
@@ -237,7 +242,7 @@ public abstract class OpenFragment
 		from.setOnCreateContextMenuListener(new OnCreateContextMenuListener() {
 			public void onCreateContextMenu(ContextMenu menu, View v,
 					ContextMenuInfo menuInfo) {
-				getMenuInflater().inflate(menuId, menu);
+				getSupportMenuInflater().inflate(menuId, menu);
 				onPrepareOptionsMenu(menu);
 			}
 		});
@@ -262,7 +267,7 @@ public abstract class OpenFragment
 		if(DEBUG)
 			Logger.LogDebug("Showing menu " + menu + (from != null ? " near 0x" + Integer.toHexString(from.getId()) : " by itself"));
 		if(getActivity() != null)
-			getActivity().onPrepareOptionsMenu(menu);
+			getActivity().onPrepareOptionsMenu((android.view.Menu) menu);
 		mOpenMenu.setMenu(menu);
 		mOpenMenu.setAnchor(from);
 		mOpenMenu.setNumColumns(1);
@@ -291,7 +296,7 @@ public abstract class OpenFragment
 			Logger.LogDebug("Showing menu 0x" + Integer.toHexString(menuId) + (from != null ? " near 0x" + Integer.toHexString(from.getId()) : " by itself"));
 		Menu menu = mOpenMenu.getMenu();
 		if(getActivity() != null)
-			getActivity().onPrepareOptionsMenu(menu);
+			getActivity().onPrepareOptionsMenu((android.view.Menu) menu);
 		mOpenMenu.setMenu(menu);
 		mOpenMenu.setAnchor(from);
 		mOpenMenu.setNumColumns(1);
@@ -330,7 +335,7 @@ public abstract class OpenFragment
 	public MenuInflater getMenuInflater()
 	{
 		if(getActivity() != null)
-			return (MenuInflater)getActivity().getMenuInflater();
+			return (MenuInflater)getActivity().getSupportMenuInflater();
 		else return null;
 	}
 

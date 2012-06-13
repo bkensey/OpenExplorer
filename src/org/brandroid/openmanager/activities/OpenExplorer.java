@@ -18,6 +18,11 @@
 
 package org.brandroid.openmanager.activities;
 
+import com.actionbarsherlock.app.ActionBar;
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuItem;
+import com.actionbarsherlock.view.MenuItem.OnMenuItemClickListener;
+
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -28,7 +33,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.StatFs;
 import android.provider.MediaStore;
-import android.app.ActionBar;
+//import android.app.ActionBar;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.SearchManager;
@@ -84,9 +89,9 @@ import android.view.Gravity;
 import android.view.InflateException;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.MenuItem.OnMenuItemClickListener;
+//import android.view.Menu;
+//import android.view.MenuItem;
+//import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.SubMenu;
 import android.view.View;
 import android.view.View.OnFocusChangeListener;
@@ -381,7 +386,7 @@ public class OpenExplorer
 		} else if(!BEFORE_HONEYCOMB) {
 			requestWindowFeature(Window.FEATURE_ACTION_BAR);
 			USE_ACTION_BAR = true;
-			mBar = getActionBar();
+			mBar = getSupportActionBar();
 		}
 		if(mBar != null)
 		{
@@ -2239,7 +2244,7 @@ public class OpenExplorer
 		
 	}
 	
-	@Override
+//	@Override
 	public boolean onContextItemSelected(MenuItem item) {
 		return onClick(item.getItemId(), item, null);
 	}
@@ -2454,7 +2459,7 @@ public class OpenExplorer
 	}
 	public boolean onCreateOptionsMenu(Menu menu, boolean fromSystem)
 	{
-		MenuUtils.scanMenuShortcuts(menu, getMenuInflater());
+		MenuUtils.scanMenuShortcuts(menu, getSupportMenuInflater());
 		//mActionBarHelper.onCreateOptionsMenu(menu);
 		OpenFragment frag = getSelectedFragment();
 		
@@ -2465,8 +2470,8 @@ public class OpenExplorer
 			Logger.LogDebug("OpenExplorer.onCreateOptionsMenu(" + menu + "," + fromSystem + ")");
 		//getMenuInflater().inflate(R.menu.global_top, menu);
 		if(frag != null) // && frag.hasOptionsMenu())
-			frag.onCreateOptionsMenu(menu, getMenuInflater());
-		getMenuInflater().inflate(R.menu.global, menu);
+			frag.onCreateOptionsMenu(menu, getSupportMenuInflater());
+		getSupportMenuInflater().inflate(R.menu.global, menu);
 		
 		if(!USE_PRETTY_MENUS) {
 			MenuUtils.setMenuVisible(menu, false, R.id.menu_more);
@@ -3074,7 +3079,7 @@ public class OpenExplorer
 		final Menu menu = IconContextMenu.newMenu(this, R.menu.multiselect);
 		MenuUtils.setMenuChecked(menu, getClipboard().isMultiselect(), R.id.menu_multi);
 		MenuUtils.setMenuEnabled(menu, getClipboard().hasPastable(), R.id.menu_multi_all_copy, R.id.menu_multi_all_copy, R.id.menu_multi_all_move);
-		final IconContextMenuAdapter cmdAdapter = new IconContextMenuAdapter(this, menu);
+		final IconContextMenuAdapter cmdAdapter = new IconContextMenuAdapter(this, (android.view.Menu) menu);
 		cmdAdapter.setTextLayout(R.layout.context_item);
 		mGridCommands.setAdapter(cmdAdapter);
 		mGridCommands.setOnItemClickListener(new OnItemClickListener() {
@@ -3245,7 +3250,7 @@ public class OpenExplorer
 				Logger.LogWarning("Couldn't find \"More Menu\"!");
 				MenuBuilder menu = new MenuBuilder(this);
 				getSelectedFragment().onCreateOptionsMenu(menu, getMenuInflater());
-				getMenuInflater().inflate(R.menu.global, menu);
+				getSupportMenuInflater().inflate(R.menu.global, menu);
 				onPrepareOptionsMenu(menu);
 				showMenu(menu, getCurrentFocus(), true);
 			}

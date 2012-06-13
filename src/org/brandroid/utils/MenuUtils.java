@@ -1,5 +1,10 @@
 package org.brandroid.utils;
 
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
+import com.actionbarsherlock.view.MenuItem.OnMenuItemClickListener;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -14,10 +19,10 @@ import android.content.Context;
 import android.support.v4.view.MenuItemCompat;
 import android.util.SparseArray;
 import android.view.KeyEvent;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
-import android.view.MenuItem.OnMenuItemClickListener;
+//import android.view.Menu;
+//import android.view.MenuInflater;
+//import android.view.MenuItem;
+//import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.TouchDelegate;
 import android.widget.Button;
 import android.widget.ImageButton;
@@ -83,7 +88,7 @@ public class MenuUtils {
 			if(menu.findItem(id) != null)
 			{
 				MenuItem item = (MenuItem)menu.findItem(id);
-				MenuItemCompat.setShowAsAction(item, show);
+				MenuItemCompat.setShowAsAction((android.view.MenuItem) item, show);
 			}
 		/*
 		for(int id : ids)

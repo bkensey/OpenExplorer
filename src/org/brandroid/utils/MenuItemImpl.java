@@ -16,6 +16,9 @@
 
 package org.brandroid.utils;
 
+import com.actionbarsherlock.view.MenuItem;
+import com.actionbarsherlock.view.SubMenu;
+
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -24,8 +27,8 @@ import android.util.Log;
 import android.view.ActionProvider;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
-import android.view.SubMenu;
+//import android.view.MenuItem;
+//import android.view.SubMenu;
 import android.view.View;
 import android.view.ViewDebug;
 import android.widget.LinearLayout;
